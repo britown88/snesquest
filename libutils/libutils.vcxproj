@@ -132,6 +132,7 @@
     <ClInclude Include="IncludeWindows.h" />
     <ClInclude Include="IntrusiveHeap.h" />
     <ClInclude Include="Math.h" />
+    <ClInclude Include="Matrix.h" />
     <ClInclude Include="Preprocessor.h" />
     <ClInclude Include="Rect.h" />
     <ClInclude Include="StandardVectors.h" />
@@ -151,6 +152,7 @@
     <ClCompile Include="FSM.c" />
     <ClCompile Include="IntrusiveHeap.c" />
     <ClCompile Include="Math.c" />
+    <ClCompile Include="Matrix.c" />
     <ClCompile Include="StandardVectors.c" />
     <ClCompile Include="String.c" />
     <ClCompile Include="Time.c" />

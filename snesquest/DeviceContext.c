@@ -73,6 +73,10 @@ int deviceContextCreateWindow(DeviceContext *self) {
    return 0;
 }
 
+void deviceContextPrepareForRendering(DeviceContext *self) {
+   //do contrext-related stuff here
+}
+
 void deviceContextCommitRender(DeviceContext *self) {
    SDL_GL_SwapWindow(self->window);
 }

@@ -25,6 +25,9 @@
     <Filter Include="Source Files\game">
       <UniqueIdentifier>{c5708df9-0e36-4ba8-80b8-8a97f6d28772}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\external">
+      <UniqueIdentifier>{08d19ecf-2885-43c7-a48a-cd0be5a11823}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Renderer.c">
@@ -52,6 +55,9 @@
     </ClInclude>
     <ClInclude Include="Config.h">
       <Filter>Header Files\core</Filter>
+    </ClInclude>
+    <ClInclude Include="stb_image.h">
+      <Filter>Header Files\external</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
