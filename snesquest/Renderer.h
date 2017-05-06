@@ -5,6 +5,7 @@
 #include "libutils/Defs.h"
 #include "libutils/Rect.h"
 #include "shared/Strings.h"
+#include "libutils/Preprocessor.h"
 
 typedef struct AppData_t AppData;
 
@@ -87,8 +88,15 @@ typedef struct TextureManager_t TextureManager;
 TextureManager *textureManagerCreate(AppData *data);
 void textureManagerDestroy(TextureManager *self);
 Texture *textureManagerGetTexture(TextureManager *self, const TextureRequest request);
-void textureManagerBindTexture(TextureManager *self, Texture *t, TextureSlot slot);
-Int2 textureManagerGetTextureSize(TextureManager *self, Texture *t);
+
+Texture *textureCreateCustom(int width, int height, RepeatType repeatType, FilterType filterType);
+void textureDestroy(Texture *self);
+
+void textureSetPixels(Texture *self, byte *data);
+
+void textureBind(Texture *self, TextureSlot slot);
+Int2 textureGetSize(Texture *t);
+
 
 
 typedef struct FBO_t FBO;
@@ -132,37 +140,33 @@ enum {
 };
 typedef byte VertexAttribute;
 
-Model *__modelCreate(void *data, size_t size, size_t vCount, VertexAttribute *attrs, int attrCount, ModelStreamType dataType);
+Model *__modelCreate(void *data, size_t size, size_t vCount, VertexAttribute *attrs, ModelStreamType dataType);
 void __modelUpdateData(Model *self, void *data, size_t size, size_t vCount);
 
 void modelDestroy(Model *self);
 void modelBind(Model *self);
 void modelDraw(Model *self, ModelRenderType renderType);
 
-#define VectorTPart VertexAttribute
-#include "libutils/Vector_Decl.h"
-
 #define FVF_ATTRS_FUNC(NAME, ...) \
-static vec(VertexAttribute) *CONCAT(NAME, _GetAttrs)() { \
-   static vec(VertexAttribute) *out = NULL; \
-   if (!out) { \
-      out = vecCreate(VertexAttribute)(NULL); \
-      vecPushStackArray(VertexAttribute, out, { __VA_ARGS__ }); \
-   } \
+static VertexAttribute *CONCAT(NAME, _GetAttrs)() { \
+   static VertexAttribute out[] = { __VA_ARGS__, VertexAttribute_COUNT }; \
    return out; \
 } \
 static Model *CONCAT(NAME, _CreateModel)(NAME *data, size_t vCount, ModelStreamType type) { \
-   vec(VertexAttribute) *attrs = CONCAT(NAME, _GetAttrs)(); \
-   return __modelCreate((void*)data, sizeof(NAME), vCount, vecBegin(VertexAttribute)(attrs), vecSize(VertexAttribute)(attrs), type); \
+   VertexAttribute *attrs = CONCAT(NAME, _GetAttrs)(); \
+   return __modelCreate((void*)data, sizeof(NAME), vCount, attrs, type); \
 } \
 static void CONCAT(NAME, _UpdateModel)(Model *self, NAME *data, size_t vCount){ \
    __modelUpdateData(self, (void*)data, sizeof(NAME), vCount); \
 }
 
+
+
 typedef struct {
    Float2 pos2, tex2; ColorRGBAf col4;
 }FVF_Pos2_Tex2_Col4;
 FVF_ATTRS_FUNC(FVF_Pos2_Tex2_Col4, VertexAttribute_Pos2, VertexAttribute_Tex2, VertexAttribute_Col4)
+
 
 typedef struct {
    Float2 pos2; ColorRGBAf col4;
@@ -200,7 +204,7 @@ void r_setMatrix(Renderer *self, StringView u, const Matrix *value);
 void r_setColor(Renderer *self, StringView u, const ColorRGBAf *value);
 
 void r_setTextureSlot(Renderer *self, StringView u, const TextureSlot value);
-void r_bindTexture(Renderer *self, TextureManager *manager, Texture *t, TextureSlot slot);
+void r_bindTexture(Renderer *self, Texture *t, TextureSlot slot);
 
 void r_bindFBOToWrite(Renderer *self, FBO *fbo);
 void r_bindFBOToRender(Renderer *self, FBO *fbo, TextureSlot slot);

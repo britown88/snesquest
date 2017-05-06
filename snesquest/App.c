@@ -24,7 +24,7 @@ struct App_t {
 
    //text stuff
    TextureManager *textureManager;
-   Texture *tex;
+   Texture *tex, *snesBuffer;
    Shader *s;
    UBO *ubo;
    FBO *fbo;
@@ -64,9 +64,24 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
 
    out->testModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
 
+   out->snesBuffer = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
+
    return out;
 }
 void appDestroy(App *self) {
+   
+   
+
+   fboDestroy(self->fbo);
+   uboDestroy(self->ubo);
+   shaderDestroy(self->s);
+
+   modelDestroy(self->testModel);
+
+   textureDestroy(self->snesBuffer);
+   textureDestroy(self->tex);
+   textureManagerDestroy(self->textureManager);
+
    checkedFree(self);
 }
 
@@ -144,7 +159,7 @@ static void _renderStep(App *self) {
    matrixIdentity(&texMatrix);
    r_setMatrix(r, uTexture, &texMatrix);
 
-   r_bindTexture(r, self->textureManager, self->tex, 0);
+   r_bindTexture(r, self->tex, 0);
    r_setTextureSlot(r, uTextureSlot, 0);
 
    r_renderModel(r, self->testModel, ModelRenderType_Triangles);

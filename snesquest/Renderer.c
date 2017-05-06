@@ -230,21 +230,27 @@ void shaderSetTextureSlot(Shader *self, Uniform u, const TextureSlot slot) {
    glUniform1i(u, slot);
 }
 
-struct Texture_t {
+struct Texture_t {   
    TextureRequest request;
    boolean isLoaded;
    GLuint glHandle;
    ColorRGBA *pixels;
    Int2 size;
+
+   TextureManager *parent;
 };
 
 static Texture *_textureCreate(const TextureRequest request) {
    int x = 0, y = 0, comp = 0;
-   stbi_info(request.path, &x, &y, &comp);
 
-   if (x == 0 && y == 0) {
-      return NULL;
+   if (request.path) {
+      stbi_info(request.path, &x, &y, &comp);
+
+      if (x == 0 && y == 0) {
+         return NULL;
+      }
    }
+   
 
    Texture *out = checkedCalloc(1, sizeof(Texture));
    memcpy(out, &request, sizeof(TextureRequest));
@@ -255,28 +261,38 @@ static Texture *_textureCreate(const TextureRequest request) {
    return out;
 }
 
-static void _textureDestroy(Texture *self) {
+static void _textureRelease(Texture *self) {
+   
    if (self->isLoaded) {
-      checkedFree(self->pixels);
+      glDeleteTextures(1, &self->glHandle);
+   }
+   
+   checkedFree(self->pixels);
+
+   self->glHandle = -1;
+   self->isLoaded = false;
+}
+
+static void _textureDestroy(Texture *self) {
+   if (self->pixels) {
+      _textureRelease(self);
    }   
    checkedFree(self);
 }
 
 static void _textureAcquire(Texture *self) {
-   if (!self->request.path) {
-      return;
-   }   
+   if (self->request.path) {
+      int comps = 0;
+      byte *data = stbi_load(self->request.path, &self->size.x, &self->size.y, &comps, 4);
+      if (!data) {
+         return;
+      }
 
-   int comps = 0;
-   byte *data = stbi_load(self->request.path, &self->size.x, &self->size.y, &comps, 4);
-   if (!data) {
-      return;
+      int pixelCount = self->size.x * self->size.y;
+      self->pixels = checkedCalloc(pixelCount, sizeof(ColorRGBA));
+      memcpy(self->pixels, data, pixelCount * sizeof(ColorRGBA));
+      stbi_image_free(data);
    }
-
-   int pixelCount = self->size.x * self->size.y;
-   self->pixels = checkedCalloc(pixelCount, sizeof(ColorRGBA));
-   memcpy(self->pixels, data, pixelCount * sizeof(ColorRGBA));
-   stbi_image_free(data);
 
    glEnable(GL_TEXTURE_2D);
    glGenTextures(1, &self->glHandle);
@@ -313,13 +329,7 @@ static void _textureAcquire(Texture *self) {
    self->isLoaded = true;
 }
 
-static void _textureRelease(Texture *self) {
-   glDeleteTextures(1, &self->glHandle);
-   checkedFree(self->pixels);
 
-   self->glHandle = -1;
-   self->isLoaded = false;
-}
 
 typedef Texture *TexturePtr;
 
@@ -344,8 +354,6 @@ static void _texEntryDestroy(TexturePtr *entry) {
 #define HashTableT TexturePtr
 #include "libutils/HashTable_Create.h"
 
-
-
 struct TextureManager_t {
    ht(TexturePtr) *textures;
 };
@@ -365,6 +373,7 @@ Texture *textureManagerGetTexture(TextureManager *self, const TextureRequest req
    TexturePtr *found = htFind(TexturePtr)(self->textures, &search);
    if (!found) {
       Texture *newTex = _textureCreate(request);
+      newTex->parent = self;
       if (newTex) {
          htInsert(TexturePtr)(self->textures, &newTex);
          return newTex;
@@ -376,18 +385,40 @@ Texture *textureManagerGetTexture(TextureManager *self, const TextureRequest req
 
    return *found;
 }
-void textureManagerBindTexture(TextureManager *self, Texture *t, TextureSlot slot) {
-   if (!t->isLoaded) {
-      _textureAcquire(t);
+
+void textureBind(Texture *self, TextureSlot slot) {
+   if (!self->isLoaded) {
+      _textureAcquire(self);
    }
-
    glActiveTexture(GL_TEXTURE0 + slot);
-   glBindTexture(GL_TEXTURE_2D, t->glHandle);
+   glBindTexture(GL_TEXTURE_2D, self->glHandle);
 }
-Int2 textureManagerGetTextureSize(TextureManager *self, Texture *t) {
-   return t->size;
+Int2 textureGetSize(Texture *self) {
+   return self->size;
+}
+void textureDestroy(Texture *self) {
+   if (self->parent) {
+      htErase(TexturePtr)(self->parent->textures, &self);
+   }
+   else {
+      _textureDestroy(self);
+   }   
 }
 
+Texture *textureCreateCustom(int width, int height, RepeatType repeatType, FilterType filterType) {
+   Texture *out = _textureCreate((TextureRequest){repeatType, filterType, NULL});
+
+   out->size.x = width;
+   out->size.y = height;
+
+   out->pixels = checkedCalloc(width * height, sizeof(ColorRGBA));
+
+   return out;
+}
+
+void textureSetPixels(Texture *self, byte *data) {
+
+}
 
 struct FBO_t {
    Int2 size;
@@ -515,8 +546,6 @@ void uboBind(UBO *self, UBOSlot slot) {
    glBindBufferBase(GL_UNIFORM_BUFFER, slot, self->ubo);
 }
 
-#define VectorTPart VertexAttribute
-#include "libutils/Vector_Impl.h"
 
 struct Model_t {
    byte *data;
@@ -527,7 +556,7 @@ struct Model_t {
 
    boolean built, dirtyData;
 
-   vec(VertexAttribute) *attrs;
+   VertexAttribute *attrs;
 
    GLuint vboHandle;
 };
@@ -567,13 +596,12 @@ static void _modelBuild(Model *self) {
    self->built = true;
 }
 
-Model *__modelCreate(void *data, size_t size, size_t vCount, VertexAttribute *attrs, int attrCount, ModelStreamType dataType) {
+Model *__modelCreate(void *data, size_t size, size_t vCount, VertexAttribute *attrs, ModelStreamType dataType) {
    Model *out = checkedCalloc(1, sizeof(Model));
 
    out->vertexCount = vCount;
    out->vertexSize = size;
-   out->attrs = vecCreate(VertexAttribute)(NULL);
-   vecPushArray(VertexAttribute)(out->attrs, attrs, attrCount);
+   out->attrs = attrs;
    out->data = checkedMalloc(size * vCount);
    memcpy(out->data, data, size * vCount);
    out->dataType = dataType;
@@ -609,24 +637,7 @@ void modelDestroy(Model *self) {
 }
 
 static _addAttr(Model *self, VertexAttribute *attr, int *totalOffset) {
-   glEnableVertexAttribArray((unsigned int)*attr);
-   int count = 0;
-   int offset = *totalOffset;
-
-   *totalOffset += _vertexAttributeByteSize(*attr);
-
-   switch (*attr) {
-   case VertexAttribute_Tex2:
-   case VertexAttribute_Pos2:
-      count = 2;
-      break;
-   case VertexAttribute_Col4:
-      count = 4;
-      break;
-   }
-
-   glVertexAttribPointer((unsigned int)*attr,
-      count, GL_FLOAT, GL_FALSE, self->vertexSize, (void*)offset);
+   
 }
 
 void modelBind(Model *self) {
@@ -647,9 +658,31 @@ void modelBind(Model *self) {
    }
 
    int totalOffset = 0;
-   vecForEach(VertexAttribute, attr, self->attrs, {
-      _addAttr(self, attr, &totalOffset);
-   });
+   VertexAttribute *attr = self->attrs;
+   while (*attr != VertexAttribute_COUNT) {
+      glEnableVertexAttribArray((unsigned int)*attr);
+
+      int count = 0;
+      int offset = totalOffset;
+
+      totalOffset += _vertexAttributeByteSize(*attr);
+
+      switch (*attr) {
+      case VertexAttribute_Tex2:
+      case VertexAttribute_Pos2:
+         count = 2;
+         break;
+      case VertexAttribute_Col4:
+         count = 4;
+         break;
+      }
+
+      glVertexAttribPointer((unsigned int)*attr,
+         count, GL_FLOAT, GL_FALSE, self->vertexSize, (void*)offset);
+
+      ++attr;
+   }
+
 }
 void modelDraw(Model *self, ModelRenderType renderType) {
    static GLuint map[3];
@@ -796,8 +829,8 @@ void r_setTextureSlot(Renderer *self, StringView u, const TextureSlot value) {
       shaderSetTextureSlot(self->activeShader, uni, value);
    }
 }
-void r_bindTexture(Renderer *self, TextureManager *manager, Texture *t, TextureSlot slot) {
-   textureManagerBindTexture(manager, t, slot);
+void r_bindTexture(Renderer *self, Texture *t, TextureSlot slot) {
+   textureBind(t, slot);
 }
 
 void r_bindFBOToWrite(Renderer *self, FBO *fbo) {
