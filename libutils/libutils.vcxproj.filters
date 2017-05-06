@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="BitBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BitTwiddling.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Closure_Create.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Closure_Decl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Closure_Functions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Closure_Impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Coroutine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DLLBullshit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="extern_c.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FSM.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HashTable_Create.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HashTable_Functions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IncludeWindows.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IntrusiveHeap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Math.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Preprocessor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Rect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StandardVectors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="String.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Time.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector_Create.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector_Decl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector_Functions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector_Impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="BitBuffer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BitTwiddling.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Coroutine.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Dijkstras.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FSM.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="IntrusiveHeap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Math.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StandardVectors.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="String.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Time.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Vector.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
