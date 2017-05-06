@@ -237,6 +237,8 @@ struct Texture_t {
    ColorRGBA *pixels;
    Int2 size;
 
+   boolean dirty;
+
    TextureManager *parent;
 };
 
@@ -390,8 +392,14 @@ void textureBind(Texture *self, TextureSlot slot) {
    if (!self->isLoaded) {
       _textureAcquire(self);
    }
+
    glActiveTexture(GL_TEXTURE0 + slot);
    glBindTexture(GL_TEXTURE_2D, self->glHandle);
+
+   if (self->dirty) {
+      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self->size.x, self->size.y, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
+      self->dirty = false;
+   }
 }
 Int2 textureGetSize(Texture *self) {
    return self->size;
@@ -417,7 +425,8 @@ Texture *textureCreateCustom(int width, int height, RepeatType repeatType, Filte
 }
 
 void textureSetPixels(Texture *self, byte *data) {
-
+   memcpy(self->pixels, data, self->size.x * self->size.y * sizeof(ColorRGBA));
+   self->dirty = true;
 }
 
 struct FBO_t {
@@ -634,10 +643,6 @@ void modelDestroy(Model *self) {
    }
 
    checkedFree(self);
-}
-
-static _addAttr(Model *self, VertexAttribute *attr, int *totalOffset) {
-   
 }
 
 void modelBind(Model *self) {

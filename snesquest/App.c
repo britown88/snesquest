@@ -9,41 +9,32 @@
 
 #include <time.h>
 
-const static Int2 nativeRes = { 512, 336 };
+const static Int2 nativeRes = { 1280, 720 };
 
 typedef struct {
    Matrix view;
 } UBOMain;
 
-struct App_t {
-   boolean running;
-   Microseconds lastUpdated;
-   Renderer *renderer;
-   DeviceContext *context;   
-
-
-   //text stuff
+typedef struct {
    TextureManager *textureManager;
-   Texture *tex, *snesBuffer;
-   Shader *s;
+   Texture *snesBuffer;
+   Shader *baseShader;
    UBO *ubo;
-   FBO *fbo;
-   Model *testModel;
+   FBO *nativeFBO;
+   Model *rectModel;
 
-};
+   StringView uModel, uColor, uTexture, uTextureSlot;
 
-App *appCreate(Renderer *renderer, DeviceContext *context) {
-   App *out = checkedCalloc(1, sizeof(App));
+   //testing
+   Texture *testImage;
+}RenderData;
 
-   out->renderer = renderer;
-   out->context = context;
+static void _setupRenderData(RenderData *self) {
+   self->textureManager = textureManagerCreate(NULL);
+   self->baseShader = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture);
+   self->ubo = uboCreate(sizeof(UBOMain));
 
-
-   out->textureManager = textureManagerCreate(NULL);
-   out->s = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture);
-   out->ubo = uboCreate(sizeof(UBOMain));
-
-   out->fbo = fboCreate(nativeRes, RepeatType_Clamp, FilterType_Nearest);
+   self->nativeFBO = fboCreate(nativeRes, RepeatType_Clamp, FilterType_Nearest);
 
    TextureRequest request = {
       .repeatType = RepeatType_Clamp,
@@ -51,7 +42,7 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
       .path = stringIntern("assets/test.png")
    };
 
-   out->tex = textureManagerGetTexture(out->textureManager, request);
+   self->testImage = textureManagerGetTexture(self->textureManager, request);
 
    FVF_Pos2_Tex2_Col4 vertices[] = {
       { .pos2 = { 0.0f, 0.0f },.tex2 = { 0.0f, 0.0f },.col4 = { 1.0f, 1.0f, 1.0f, 1.0f } },
@@ -62,25 +53,53 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
       { .pos2 = { 0.0f, 1.0f },.tex2 = { 0.0f, 1.0f },.col4 = { 1.0f, 1.0f, 1.0f, 1.0f } },
    };
 
-   out->testModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
+   self->rectModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
 
-   out->snesBuffer = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
+   self->snesBuffer = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
+
+   self->uModel = stringIntern("uModelMatrix");
+   self->uColor = stringIntern("uColorTransform");
+   self->uTexture = stringIntern("uTexMatrix");
+   self->uTextureSlot = stringIntern("uTexture");
+}
+
+static void _renderDataDestroy(RenderData *self) {
+   fboDestroy(self->nativeFBO);
+   uboDestroy(self->ubo);
+   shaderDestroy(self->baseShader);
+
+   modelDestroy(self->rectModel);
+
+   textureDestroy(self->snesBuffer);
+   textureManagerDestroy(self->textureManager);
+}
+
+struct App_t {
+   boolean running;
+   Microseconds lastUpdated;
+   Renderer *renderer;
+   DeviceContext *context;   
+
+
+   //text stuff
+   RenderData rData;
+};
+
+
+
+App *appCreate(Renderer *renderer, DeviceContext *context) {
+   App *out = checkedCalloc(1, sizeof(App));
+
+   out->renderer = renderer;
+   out->context = context;
+
+   _setupRenderData(&out->rData);   
 
    return out;
 }
 void appDestroy(App *self) {
    
-   
-
-   fboDestroy(self->fbo);
-   uboDestroy(self->ubo);
-   shaderDestroy(self->s);
-
-   modelDestroy(self->testModel);
-
-   textureDestroy(self->snesBuffer);
-   textureDestroy(self->tex);
-   textureManagerDestroy(self->textureManager);
+   _renderDataDestroy(&self->rData);   
 
    checkedFree(self);
 }
@@ -98,7 +117,7 @@ static void _start(App *self) {
 
    r_init(self->renderer);
 
-   r_bindUBO(self->renderer, self->ubo, 0);
+   r_bindUBO(self->renderer, self->rData.ubo, 0);
 
    srand((unsigned int)time(NULL));
 
@@ -121,79 +140,96 @@ static void freeUpCPU(Microseconds timeOffset) {
    }
 }
 
-
-
-static void _renderStep(App *self) {
+static void _renderTestImage(App *self) {
    Renderer *r = self->renderer;
 
-   StringView uModel = stringIntern("uModelMatrix");
-   StringView uColor = stringIntern("uColorTransform");
-   StringView uTexture = stringIntern("uTexMatrix");
-   StringView uTextureSlot = stringIntern("uTexture");
+   Matrix model = { 0 };
+   matrixIdentity(&model);
+   matrixScale(&model, (Float2) { 100.0f, 100.0f });
+   r_setMatrix(r, self->rData.uModel, &model);
+   r_setColor(r, self->rData.uColor, &White);
 
-   
+   Matrix texMatrix = { 0 };
+   matrixIdentity(&texMatrix);
+   r_setMatrix(r, self->rData.uTexture, &texMatrix);
+
+   r_bindTexture(r, self->rData.testImage, 0);
+   r_setTextureSlot(r, self->rData.uTextureSlot, 0);
+
+   r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
+}
+
+static void _renderNative(App *self) {
+   Renderer *r = self->renderer;
+
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
-   Int2 winSize = r_getSize(r);
 
+   _renderTestImage(self);
+}
 
-   r_bindFBOToWrite(r, self->fbo);
+static void _prepareForNativeRender(App *self) {
+   Renderer *r = self->renderer;
+
+   const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
+
+   r_bindFBOToWrite(r, self->rData.nativeFBO);
    r_viewport(r, &nativeViewport);
-   r_clear(r, &Black);
-
+   r_clear(r, &White);
    r_enableAlphaBlending(r, true);
 
    UBOMain ubo = { 0 };
    matrixIdentity(&ubo.view);
    matrixOrtho(&ubo.view, 0.0f, (float)nativeViewport.right, (float)nativeViewport.bottom, 0.0f, 1.0f, -1.0f);
-   r_setUBOData(r, self->ubo, ubo);
+   r_setUBOData(r, self->rData.ubo, ubo);
 
-   r_setShader(r, self->s);
+   r_setShader(r, self->rData.baseShader);
+}
 
-   Matrix model = { 0 };
-   matrixIdentity(&model);
-   matrixScale(&model, (Float3) { 100.0f, 100.0f, 1.0f });
-   r_setMatrix(r, uModel, &model);
-   r_setColor(r, uColor, &White);
+static void _renderScreen(App *self) {
+   Renderer *r = self->renderer;
 
-   Matrix texMatrix = { 0 };
-   matrixIdentity(&texMatrix);
-   r_setMatrix(r, uTexture, &texMatrix);
+   const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
+   Int2 winSize = r_getSize(r);
 
-   r_bindTexture(r, self->tex, 0);
-   r_setTextureSlot(r, uTextureSlot, 0);
-
-   r_renderModel(r, self->testModel, ModelRenderType_Triangles);
    r_enableAlphaBlending(r, false);
-
 
    r_bindFBOToWrite(r, NULL);
 
    r_viewport(r, &(Recti){ 0, 0, winSize.x, winSize.y });
    r_clear(r, &Black);
 
-
+   UBOMain ubo = { 0 };
    matrixIdentity(&ubo.view);
    matrixOrtho(&ubo.view, 0.0f, (float)winSize.x, 0.0, (float)winSize.y, 1.0f, -1.0f);
-   r_setUBOData(r, self->ubo, ubo);
+   r_setUBOData(r, self->rData.ubo, ubo);
 
-   r_setShader(r, self->s);
+   r_setShader(r, self->rData.baseShader);
 
+   Matrix model = { 0 };
    matrixIdentity(&model);
-   matrixScale(&model, (Float3) { (float)winSize.x, (float)winSize.y, 1.0f });
-   r_setMatrix(r, uModel, &model);
-   r_setColor(r, uColor, &White);
+   matrixScale(&model, (Float2) { (float)winSize.x, (float)winSize.y });
+   r_setMatrix(r, self->rData.uModel, &model);
+   r_setColor(r, self->rData.uColor, &White);
 
+   Matrix texMatrix = { 0 };
    matrixIdentity(&texMatrix);
-   r_setMatrix(r, uTexture, &texMatrix);
+   r_setMatrix(r, self->rData.uTexture, &texMatrix);
 
-   r_bindFBOToRender(r, self->fbo, 0);
-   r_setTextureSlot(r, uTextureSlot, 0);
+   r_bindFBOToRender(r, self->rData.nativeFBO, 0);
+   r_setTextureSlot(r, self->rData.uTextureSlot, 0);
 
-   r_renderModel(r, self->testModel, ModelRenderType_Triangles);
-
+   r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
 
    r_finish(r);
    r_flush(r);
+}
+
+
+
+static void _renderStep(App *self) {
+   _prepareForNativeRender(self);
+   _renderNative(self);
+   _renderScreen(self);
 }
 
 static void _singleUpdate(App *self) {
