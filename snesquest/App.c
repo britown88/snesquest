@@ -11,19 +11,23 @@
 
 const static Int2 nativeRes = { 1280, 720 };
 
+
 typedef struct {
    Matrix view;
 } UBOMain;
 
 typedef struct {
    TextureManager *textureManager;
-   Texture *snesBuffer;
+   
    Shader *baseShader;
    UBO *ubo;
    FBO *nativeFBO;
    Model *rectModel;
 
    StringView uModel, uColor, uTexture, uTextureSlot;
+
+   Texture *snesTexture;
+   ColorRGBA *snesBuffer;
 
    //testing
    Texture *testImage;
@@ -55,7 +59,8 @@ static void _setupRenderData(RenderData *self) {
 
    self->rectModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
 
-   self->snesBuffer = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
+   self->snesTexture = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
+   self->snesBuffer = checkedCalloc(512 * 168, sizeof(ColorRGBA));
 
    self->uModel = stringIntern("uModelMatrix");
    self->uColor = stringIntern("uColorTransform");
@@ -70,7 +75,9 @@ static void _renderDataDestroy(RenderData *self) {
 
    modelDestroy(self->rectModel);
 
-   textureDestroy(self->snesBuffer);
+   textureDestroy(self->snesTexture);
+   checkedFree(self->snesBuffer);
+
    textureManagerDestroy(self->textureManager);
 }
 
@@ -140,31 +147,52 @@ static void freeUpCPU(Microseconds timeOffset) {
    }
 }
 
-static void _renderTestImage(App *self) {
+static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 size, ColorRGBAf color) {
    Renderer *r = self->renderer;
 
    Matrix model = { 0 };
    matrixIdentity(&model);
-   matrixScale(&model, (Float2) { 100.0f, 100.0f });
+   matrixTranslate(&model, pos);
+   matrixScale(&model, size);
+   
    r_setMatrix(r, self->rData.uModel, &model);
-   r_setColor(r, self->rData.uColor, &White);
+   r_setColor(r, self->rData.uColor, &color);
 
    Matrix texMatrix = { 0 };
    matrixIdentity(&texMatrix);
    r_setMatrix(r, self->rData.uTexture, &texMatrix);
 
-   r_bindTexture(r, self->rData.testImage, 0);
+   r_bindTexture(r, tex, 0);
    r_setTextureSlot(r, self->rData.uTextureSlot, 0);
 
    r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
 }
 
+static int _testCounter = 0;
 static void _renderNative(App *self) {
    Renderer *r = self->renderer;
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
 
-   _renderTestImage(self);
+
+   int x, y;
+   for (y = 0; y < 168; ++y) {
+      for (x = 0; x < 512; ++x) {
+         if (_testCounter % 168 == y) {
+            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { 255, 0, 0, 255 };
+         }
+         else {
+            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { 0, 0, 0, 255 };
+         }
+      }      
+   }
+   ++_testCounter;
+   textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
+   _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
+
+   //test aramis
+   float aramisSize = 64.0f;
+   _renderBasicRectModel(self, self->rData.testImage, (Float2) { nativeRes.x - aramisSize, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
 }
 
 static void _prepareForNativeRender(App *self) {
