@@ -35,7 +35,7 @@ typedef struct {
 
 static void _setupRenderData(RenderData *self) {
    self->textureManager = textureManagerCreate(NULL);
-   self->baseShader = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture);
+   self->baseShader = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture|ShaderParams_Color);
    self->ubo = uboCreate(sizeof(UBOMain));
 
    self->nativeFBO = fboCreate(nativeRes, RepeatType_Clamp, FilterType_Nearest);
@@ -202,7 +202,7 @@ static void _prepareForNativeRender(App *self) {
 
    r_bindFBOToWrite(r, self->rData.nativeFBO);
    r_viewport(r, &nativeViewport);
-   r_clear(r, &White);
+   r_clear(r, &DkGray);
    r_enableAlphaBlending(r, true);
 
    UBOMain ubo = { 0 };
@@ -252,11 +252,27 @@ static void _renderScreen(App *self) {
    r_flush(r);
 }
 
+static void _renderGUI(App *self) {
+   Renderer *r = self->renderer;
+   Matrix model = { 0 };
+   matrixIdentity(&model);
 
+   r_setMatrix(r, self->rData.uModel, &model);
+   r_setColor(r, self->rData.uColor, &White);
+
+   Matrix texMatrix = { 0 };
+   matrixIdentity(&texMatrix);
+   r_setMatrix(r, self->rData.uTexture, &texMatrix);
+
+   r_setTextureSlot(r, self->rData.uTextureSlot, 0);
+   
+   deviceContextRenderGUI(self->context, r);
+}
 
 static void _renderStep(App *self) {
    _prepareForNativeRender(self);
    _renderNative(self);
+   _renderGUI(self);
    _renderScreen(self);
 }
 

@@ -46,7 +46,8 @@ typedef uintptr_t TextureSlot;
 
 enum {
    ShaderParams_DiffuseTexture = 1 << 0,
-   ShaderParams_Rotation = 1 << 3
+   ShaderParams_Color = 1 << 1,
+   ShaderParams_Rotation = 1 << 2,
 };
 typedef byte ShaderParams;
 
@@ -139,6 +140,8 @@ enum {
    VertexAttribute_COUNT
 };
 typedef byte VertexAttribute;
+
+void glHelperBindVertexAttrributes(VertexAttribute *attrs, unsigned int vertexSize);
 
 Model *__modelCreate(void *data, size_t size, size_t vCount, VertexAttribute *attrs, ModelStreamType dataType);
 void __modelUpdateData(Model *self, void *data, size_t size, size_t vCount);

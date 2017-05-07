@@ -1,10 +1,12 @@
 #include "DeviceContext.h"
 #include "Config.h"
+#include "GUI.h"
 
 #include "shared/CheckedMemory.h"
 #include "libutils/IncludeWindows.h"
 #include "libutils/Defs.h"
 
+#include <GL/glew.h>
 #include <SDL2/SDL.h>
 
 
@@ -15,13 +17,18 @@ struct DeviceContext_t {
    LARGE_INTEGER clock_freq, clock_start;
    Int2 size;
    boolean shouldClose;
+   GUI *gui;
 };
 
 DeviceContext *deviceContextCreate() {
    DeviceContext *out = checkedCalloc(1, sizeof(DeviceContext));
+   out->gui = guiCreate();
    return out;
 }
 void deviceContextDestroy(DeviceContext *self) {
+
+   guiDestroy(self->gui);
+
    // Delete our OpengL context
    SDL_GL_DeleteContext(self->sdlContext);
 
@@ -59,8 +66,9 @@ int deviceContextCreateWindow(DeviceContext *self) {
 
    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
@@ -75,6 +83,12 @@ int deviceContextCreateWindow(DeviceContext *self) {
 
 void deviceContextPrepareForRendering(DeviceContext *self) {
    //do contrext-related stuff here
+   glewInit();
+   guiInit(self->gui);
+}
+
+void deviceContextRenderGUI(DeviceContext *self, Renderer *r) {
+   guiRender(self->gui, r);
 }
 
 void deviceContextCommitRender(DeviceContext *self) {
@@ -82,11 +96,14 @@ void deviceContextCommitRender(DeviceContext *self) {
 }
 void deviceContextPollEvents(DeviceContext *self) {
    SDL_Event event;
+   guiBeginInput(self->gui);
    while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
          self->shouldClose = true;
       }
+      guiProcessInputEvent(self->gui, &event);
    }
+   guiEndInput(self->gui);
 }
 
 Int2 deviceContextGetWindowSize(DeviceContext *self) {

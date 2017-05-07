@@ -91,6 +91,7 @@
       <SDLCheck>true</SDLCheck>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>../;</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>glew32.lib;SDL2.lib;SDL2main.lib;opengl32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -123,6 +124,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
       <SDLCheck>true</SDLCheck>
       <CompileAs>CompileAsC</CompileAs>
       <AdditionalIncludeDirectories>../;</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -155,6 +157,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
   <ItemGroup>
     <ClCompile Include="App.c" />
     <ClCompile Include="DeviceContext.c" />
+    <ClCompile Include="GUI.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="Renderer.c" />
   </ItemGroup>
@@ -173,6 +176,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     <ClInclude Include="App.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="DeviceContext.h" />
+    <ClInclude Include="GUI.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="stb_image.h" />
   </ItemGroup>

@@ -6,6 +6,7 @@
 
 
 typedef struct DeviceContext_t DeviceContext;
+typedef struct Renderer_t Renderer;
 
 DeviceContext *deviceContextCreate();
 void deviceContextDestroy(DeviceContext *self);
@@ -14,6 +15,7 @@ int deviceContextCreateWindow(DeviceContext *self);
 void deviceContextPrepareForRendering(DeviceContext *self);
 void deviceContextCommitRender(DeviceContext *self);
 void deviceContextPollEvents(DeviceContext *self);
+void deviceContextRenderGUI(DeviceContext *self, Renderer *r);
 
 Int2 deviceContextGetWindowSize(DeviceContext *self);
 Microseconds deviceContextGetTime(DeviceContext *self);

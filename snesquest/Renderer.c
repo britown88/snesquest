@@ -166,6 +166,9 @@ static void _shaderBuild(Shader *self) {
    if (self->params&ShaderParams_DiffuseTexture) {
       vecPushBack(StringPtr)(vertShader, &(String*){ stringCreate(DiffuseTextureOption) });
    }
+   if (self->params&ShaderParams_Color) {
+      vecPushBack(StringPtr)(vertShader, &(String*){ stringCreate(ColorAttributeOption) });
+   }
    if (self->params&ShaderParams_Rotation) {
       vecPushBack(StringPtr)(vertShader, &(String*){ stringCreate(RotationOption) });
    }
@@ -178,6 +181,9 @@ static void _shaderBuild(Shader *self) {
    vecPushBack(StringPtr)(fragShader, &(String*){ stringCreate(FragmentOption) });
    if (self->params&ShaderParams_DiffuseTexture) {
       vecPushBack(StringPtr)(fragShader, &(String*){ stringCreate(DiffuseTextureOption) });
+   }
+   if (self->params&ShaderParams_Color) {
+      vecPushBack(StringPtr)(fragShader, &(String*){ stringCreate(ColorAttributeOption) });
    }
    vecPushBack(StringPtr)(fragShader, &(String*){ stringCreate(file) });
    unsigned int frag = _shaderCompile(self, fragShader, GL_FRAGMENT_SHADER);
@@ -645,25 +651,14 @@ void modelDestroy(Model *self) {
    checkedFree(self);
 }
 
-void modelBind(Model *self) {
-   if (!self->built) {
-      _modelBuild(self);
-   }
-
-   glBindBuffer(GL_ARRAY_BUFFER, self->vboHandle);
-
-   if (self->dataNewData && self->dirtyData) {
-      glBufferData(GL_ARRAY_BUFFER, self->vertexSize * self->vertexCount, self->dataNewData, _modelGetDataType(self->dataType));
-      self->dirtyData = false;
-   }
-
+void glHelperBindVertexAttrributes(VertexAttribute *attrs, unsigned int vertexSize) {
    //clear current attribs
    for (unsigned int i = 0; i < (unsigned int)VertexAttribute_COUNT; ++i) {
       glDisableVertexAttribArray(i);
    }
 
    int totalOffset = 0;
-   VertexAttribute *attr = self->attrs;
+   VertexAttribute *attr = attrs;
    while (*attr != VertexAttribute_COUNT) {
       glEnableVertexAttribArray((unsigned int)*attr);
 
@@ -683,11 +678,25 @@ void modelBind(Model *self) {
       }
 
       glVertexAttribPointer((unsigned int)*attr,
-         count, GL_FLOAT, GL_FALSE, self->vertexSize, (void*)offset);
+         count, GL_FLOAT, GL_FALSE, vertexSize, (void*)offset);
 
       ++attr;
    }
+}
 
+void modelBind(Model *self) {
+   if (!self->built) {
+      _modelBuild(self);
+   }
+
+   glBindBuffer(GL_ARRAY_BUFFER, self->vboHandle);
+
+   if (self->dataNewData && self->dirtyData) {
+      glBufferData(GL_ARRAY_BUFFER, self->vertexSize * self->vertexCount, self->dataNewData, _modelGetDataType(self->dataType));
+      self->dirtyData = false;
+   }
+
+   glHelperBindVertexAttrributes(self->attrs, self->vertexSize);
 }
 void modelDraw(Model *self, ModelRenderType renderType) {
    static GLuint map[3];
@@ -726,7 +735,7 @@ void rendererDestroy(Renderer *self) {
 //initialize the active context for rendering (things like glewinit are done here
 void r_init(Renderer *self) {
    deviceContextPrepareForRendering(self->context);
-   glewInit();
+   
 
    glLineWidth(1.0f);
    glPointSize(1.0f);
