@@ -56,5 +56,8 @@
     <ClInclude Include="AppData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="nuklear.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -19,8 +19,8 @@
 
 #include "shared/CheckedMemory.h"
 
-#define MAX_VERTEX_MEMORY 512 * 1024
-#define MAX_ELEMENT_MEMORY 128 * 1024
+#define MAX_VERTEX_MEMORY 1024 * 1024
+#define MAX_ELEMENT_MEMORY 512 * 1024
 
 #include "libsnes/snes.h"
 #include "AppData.h"
@@ -261,7 +261,7 @@ void guiUpdate(GUI *self, AppData *data) {
    if (nk_begin(ctx, "Options", winRect,
      NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
    {
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MINIMIZED)) {
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
          
          static boolean firstLoad = true;
 
@@ -276,50 +276,108 @@ void guiUpdate(GUI *self, AppData *data) {
          }
          
 
-         nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
-         nk_layout_row_push(ctx, 20);
-         nk_label(ctx, "", NK_TEXT_CENTERED);
-         for (j = 0; j < 16; ++j) {
-            nk_layout_row_push(ctx, 20);
-            nk_labelf(ctx, NK_TEXT_CENTERED, "%i", j);
-         }   
-         nk_layout_row_end(ctx);
-         
-         for (j = 0; j < 16; ++j) {
+         if (nk_tree_push(ctx, NK_TREE_NODE, "BG", NK_MINIMIZED)) {
+
+            nk_style_push_vec2(ctx, &ctx->style.button.padding, nk_vec2(10,10));
+            nk_style_push_vec2(ctx, &ctx->style.text.padding, nk_vec2( 0,0 ));
+
             nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
-
             nk_layout_row_push(ctx, 20);
-            nk_labelf(ctx, NK_TEXT_RIGHT, "%i:", j);
-            for (i = 0; i < 16; ++i) {
-               boolean selected = selectedPalette == j * 16 + i;
+            nk_label(ctx, "", NK_TEXT_CENTERED);
+            for (j = 0; j < 16; ++j) {
                nk_layout_row_push(ctx, 20);
-
-               if (selected) {
-                  nk_style_push_float(ctx, &ctx->style.button.border, 2.0f);
-                  nk_style_push_color(ctx, &ctx->style.button.border_color, nk_rgb(255, 255, 255));                  
-               }
-
-               if (nk_button_color(ctx, _convert15bitColorTo24(palette[j * 16 + i]) )) {
-                  selectedPalette = j * 16 + i;
-               }
-
-               if (selected) {
-                  
-                  nk_style_pop_float(ctx);
-                  nk_style_pop_color(ctx);
-               }
-
-               palette[j * 16 + i].a = 255;
+               nk_labelf(ctx, NK_TEXT_CENTERED, "%i", j);
             }
             nk_layout_row_end(ctx);
+
+            for (j = 0; j < 8; ++j) {
+               nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
+
+               nk_layout_row_push(ctx, 20);
+               nk_labelf(ctx, NK_TEXT_RIGHT, "%i:", j);
+               for (i = 0; i < 16; ++i) {
+                  boolean selected = selectedPalette == j * 16 + i;
+                  nk_layout_row_push(ctx, 20);
+
+                  if (selected) {
+                     nk_style_push_float(ctx, &ctx->style.button.border, 2.0f);
+                     nk_style_push_color(ctx, &ctx->style.button.border_color, nk_rgb(255, 255, 255));
+                  }
+
+                  if (nk_button_color(ctx, _convert15bitColorTo24(palette[j * 16 + i]))) {
+                     selectedPalette = j * 16 + i;
+                  }
+
+                  if (selected) {
+
+                     nk_style_pop_float(ctx);
+                     nk_style_pop_color(ctx);
+                  }
+
+                  palette[j * 16 + i].a = 255;
+               }
+               nk_layout_row_end(ctx);
+            }
+
+            nk_style_pop_vec2(ctx);
+            nk_style_pop_vec2(ctx);
+
+            nk_tree_pop(ctx);
          }
+
+         if (nk_tree_push(ctx, NK_TREE_NODE, "OBJ", NK_MINIMIZED)) {
+
+            nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
+            nk_layout_row_push(ctx, 20);
+            nk_label(ctx, "", NK_TEXT_CENTERED);
+            for (j = 0; j < 16; ++j) {
+               nk_layout_row_push(ctx, 20);
+               nk_labelf(ctx, NK_TEXT_CENTERED, "%i", j);
+            }
+            nk_layout_row_end(ctx);
+
+            for (j = 8; j < 16; ++j) {
+               nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
+
+               nk_layout_row_push(ctx, 20);
+               nk_labelf(ctx, NK_TEXT_RIGHT, "%i:", j);
+               for (i = 0; i < 16; ++i) {
+                  boolean selected = selectedPalette == j * 16 + i;
+                  nk_layout_row_push(ctx, 20);
+
+                  if (selected) {
+                     nk_style_push_float(ctx, &ctx->style.button.border, 2.0f);
+                     nk_style_push_color(ctx, &ctx->style.button.border_color, nk_rgb(255, 255, 255));
+                  }
+
+                  if (nk_button_color(ctx, _convert15bitColorTo24(palette[j * 16 + i]))) {
+                     selectedPalette = j * 16 + i;
+                  }
+
+                  if (selected) {
+
+                     nk_style_pop_float(ctx);
+                     nk_style_pop_color(ctx);
+                  }
+
+                  palette[j * 16 + i].a = 255;
+               }
+               nk_layout_row_end(ctx);
+            }
+
+            nk_tree_pop(ctx);
+         }
+         
+                 
          
          if (nk_tree_push(ctx, NK_TREE_NODE, "Edit Color", NK_MAXIMIZED)) {
             //nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
-            nk_layout_row_dynamic(ctx, 20, 2);
+            nk_layout_row_begin(ctx, NK_STATIC, 20, 2);
+            nk_layout_row_push(ctx, 100);
             nk_labelf(ctx, NK_TEXT_RIGHT, "Selected: %i", selectedPalette);
+            nk_layout_row_push(ctx, 50);
             nk_button_color(ctx, _convert15bitColorTo24(palette[selectedPalette]));
-            
+            nk_layout_row_end(ctx);
 
             nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
             nk_layout_row_push(ctx, 15);

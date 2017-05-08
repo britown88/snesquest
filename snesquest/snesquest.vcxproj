@@ -179,6 +179,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     <ClInclude Include="Config.h" />
     <ClInclude Include="DeviceContext.h" />
     <ClInclude Include="GUI.h" />
+    <ClInclude Include="nuklear.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="stb_image.h" />
   </ItemGroup>
