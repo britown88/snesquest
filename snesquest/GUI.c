@@ -239,7 +239,7 @@ void guiInit(GUI *self) {
 
 static struct nk_color _convert15bitColorTo24(struct nk_color in) {
    struct nk_color out;
-   out.a = in.a;
+   out.a = 255;
 
    out.r = (byte)((255.0f * in.r) / 31);
    out.g = (byte)((255.0f * in.g) / 31);
@@ -248,190 +248,142 @@ static struct nk_color _convert15bitColorTo24(struct nk_color in) {
    return out;
 }
 
-void guiUpdate(GUI *self, AppData *data) {
-   struct nk_context *ctx = &self->ctx;
+static void _buildPalette(struct nk_context *ctx, AppData *data) {
 
    static int selectedPalette = 0;
-
-   int i = 0, j = 0;
    static struct nk_color palette[256] = { 0 };
 
-   struct nk_rect winRect = nk_rect(1024, 0, 256, 512);  
+   if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
 
-   if (nk_begin(ctx, "Options", winRect,
-     NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
-   {
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
-         
-         static boolean firstLoad = true;
+      static boolean firstLoad = true;
+      struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
-         if (firstLoad) {
-            for (i = 0; i < 256; ++i) {
-               Color c = data->snes->cgram.bgPalette256.colors[i];
-               palette[i].r = c.r;
-               palette[i].g = c.g;
-               palette[i].b = c.b;
-            }
-            firstLoad = false;
+      if (firstLoad) {
+         int i = 0;
+         for (i = 0; i < 256; ++i) {
+            Color c = data->snes->cgram.bgPalette256.colors[i];
+            palette[i].r = c.r;
+            palette[i].g = c.g;
+            palette[i].b = c.b;
+
          }
-         
+         firstLoad = false;
+      }
 
-         if (nk_tree_push(ctx, NK_TREE_NODE, "BG", NK_MINIMIZED)) {
+      //palette table
+      const int palRowHeight = 12, palRectWidth = 12;
+      nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
+      nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 2);
+      int y = 0;
+      for (y = 0; y < 16; ++y) {
+         nk_layout_row_push(ctx, 20);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "%i: ", y);
 
-            nk_style_push_vec2(ctx, &ctx->style.button.padding, nk_vec2(10,10));
-            nk_style_push_vec2(ctx, &ctx->style.text.padding, nk_vec2( 0,0 ));
+         nk_layout_row_push(ctx, palRectWidth * 16);
 
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
-            nk_layout_row_push(ctx, 20);
-            nk_label(ctx, "", NK_TEXT_CENTERED);
-            for (j = 0; j < 16; ++j) {
-               nk_layout_row_push(ctx, 20);
-               nk_labelf(ctx, NK_TEXT_CENTERED, "%i", j);
-            }
-            nk_layout_row_end(ctx);
+         enum nk_widget_layout_states state;
+         struct nk_rect bounds;
 
-            for (j = 0; j < 8; ++j) {
-               nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
+         state = nk_widget(&bounds, ctx);
+         if (state && state != NK_WIDGET_ROM) {
+            int x = 0;
+            for (x = 0; x < 16; ++x) {
+               boolean selected = selectedPalette == y * 16 + x;
 
-               nk_layout_row_push(ctx, 20);
-               nk_labelf(ctx, NK_TEXT_RIGHT, "%i:", j);
-               for (i = 0; i < 16; ++i) {
-                  boolean selected = selectedPalette == j * 16 + i;
-                  nk_layout_row_push(ctx, 20);
+               struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
+               pBounds.x += x * palRectWidth;
+               nk_fill_rect(canvas, pBounds, 0, _convert15bitColorTo24(palette[y * 16 + x]));
 
-                  if (selected) {
-                     nk_style_push_float(ctx, &ctx->style.button.border, 2.0f);
-                     nk_style_push_color(ctx, &ctx->style.button.border_color, nk_rgb(255, 255, 255));
-                  }
-
-                  if (nk_button_color(ctx, _convert15bitColorTo24(palette[j * 16 + i]))) {
-                     selectedPalette = j * 16 + i;
-                  }
-
-                  if (selected) {
-
-                     nk_style_pop_float(ctx);
-                     nk_style_pop_color(ctx);
-                  }
-
-                  palette[j * 16 + i].a = 255;
+               if (nk_input_mouse_clicked(&ctx->input, NK_BUTTON_LEFT, pBounds)) {
+                  selectedPalette = y * 16 + x;
                }
-               nk_layout_row_end(ctx);
-            }
 
-            nk_style_pop_vec2(ctx);
-            nk_style_pop_vec2(ctx);
+               ++pBounds.x; ++pBounds.y;
+               pBounds.w -= 2;
+               pBounds.h -= 2;
 
-            nk_tree_pop(ctx);
-         }
-
-         if (nk_tree_push(ctx, NK_TREE_NODE, "OBJ", NK_MINIMIZED)) {
-
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
-            nk_layout_row_push(ctx, 20);
-            nk_label(ctx, "", NK_TEXT_CENTERED);
-            for (j = 0; j < 16; ++j) {
-               nk_layout_row_push(ctx, 20);
-               nk_labelf(ctx, NK_TEXT_CENTERED, "%i", j);
-            }
-            nk_layout_row_end(ctx);
-
-            for (j = 8; j < 16; ++j) {
-               nk_layout_row_begin(ctx, NK_STATIC, 20, 17);
-
-               nk_layout_row_push(ctx, 20);
-               nk_labelf(ctx, NK_TEXT_RIGHT, "%i:", j);
-               for (i = 0; i < 16; ++i) {
-                  boolean selected = selectedPalette == j * 16 + i;
-                  nk_layout_row_push(ctx, 20);
-
-                  if (selected) {
-                     nk_style_push_float(ctx, &ctx->style.button.border, 2.0f);
-                     nk_style_push_color(ctx, &ctx->style.button.border_color, nk_rgb(255, 255, 255));
-                  }
-
-                  if (nk_button_color(ctx, _convert15bitColorTo24(palette[j * 16 + i]))) {
-                     selectedPalette = j * 16 + i;
-                  }
-
-                  if (selected) {
-
-                     nk_style_pop_float(ctx);
-                     nk_style_pop_color(ctx);
-                  }
-
-                  palette[j * 16 + i].a = 255;
+               if (selected) {
+                  nk_stroke_rect(canvas, pBounds, 0, 2, nk_rgb(255, 255, 255));
                }
-               nk_layout_row_end(ctx);
             }
-
-            nk_tree_pop(ctx);
          }
-         
-                 
-         
-         if (nk_tree_push(ctx, NK_TREE_NODE, "Edit Color", NK_MAXIMIZED)) {
-            //nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 2);
-            nk_layout_row_push(ctx, 100);
-            nk_labelf(ctx, NK_TEXT_RIGHT, "Selected: %i", selectedPalette);
-            nk_layout_row_push(ctx, 50);
-            nk_button_color(ctx, _convert15bitColorTo24(palette[selectedPalette]));
-            nk_layout_row_end(ctx);
+      }
 
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
-            nk_layout_row_push(ctx, 15);
-            nk_label(ctx, "R", NK_TEXT_LEFT);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].r = nk_slide_int(ctx, 0, palette[selectedPalette].r, 31, 1);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].r = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].r, 31, 1, 1);
-            nk_layout_row_end(ctx);
+      nk_layout_row_end(ctx);
+      nk_style_pop_vec2(ctx);
 
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
-            nk_layout_row_push(ctx, 15);
-            nk_label(ctx, "G", NK_TEXT_LEFT);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].g = nk_slide_int(ctx, 0, palette[selectedPalette].g, 31, 1);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].g = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].g, 31, 1, 1);
-            nk_layout_row_end(ctx);
 
-            nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
-            nk_layout_row_push(ctx, 15);
-            nk_label(ctx, "B", NK_TEXT_LEFT);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].b = nk_slide_int(ctx, 0, palette[selectedPalette].b, 31, 1);
-            nk_layout_row_push(ctx, 70);
-            palette[selectedPalette].b = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].b, 31, 1, 1);
-            nk_layout_row_end(ctx);
+      if (nk_tree_push(ctx, NK_TREE_NODE, "Edit Color", NK_MAXIMIZED)) {
+         //nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
+         nk_layout_row_begin(ctx, NK_STATIC, 20, 2);
+         nk_layout_row_push(ctx, 100);
+         nk_labelf(ctx, NK_TEXT_RIGHT, "Selected: %i", selectedPalette);
+         nk_layout_row_push(ctx, 50);
+         nk_button_color(ctx, _convert15bitColorTo24(palette[selectedPalette]));
+         nk_layout_row_end(ctx);
 
-            nk_tree_pop(ctx);
-         }
+         nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
+         nk_layout_row_push(ctx, 15);
+         nk_label(ctx, "R", NK_TEXT_LEFT);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].r = nk_slide_int(ctx, 0, palette[selectedPalette].r, 31, 1);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].r = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].r, 31, 1, 1);
+         nk_layout_row_end(ctx);
 
+         nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
+         nk_layout_row_push(ctx, 15);
+         nk_label(ctx, "G", NK_TEXT_LEFT);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].g = nk_slide_int(ctx, 0, palette[selectedPalette].g, 31, 1);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].g = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].g, 31, 1, 1);
+         nk_layout_row_end(ctx);
+
+         nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
+         nk_layout_row_push(ctx, 15);
+         nk_label(ctx, "B", NK_TEXT_LEFT);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].b = nk_slide_int(ctx, 0, palette[selectedPalette].b, 31, 1);
+         nk_layout_row_push(ctx, 70);
+         palette[selectedPalette].b = (nk_byte)nk_propertyi(ctx, "", 0, palette[selectedPalette].b, 31, 1, 1);
+         nk_layout_row_end(ctx);
 
          nk_tree_pop(ctx);
       }
 
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Some testing", NK_MINIMIZED)) {
-         enum { EASY, HARD };
-         static int op = EASY;
-         static int property = 20;
-         nk_layout_row_static(ctx, 30, 80, 1);
-         if (nk_button_label(ctx, "button")) {
-            fprintf(stdout, "button pressed\n");
-         }
+      nk_tree_pop(ctx);
 
-         nk_layout_row_dynamic(ctx, 30, 2);
-         if (nk_option_label(ctx, "easy", op == EASY)) {
-            op = EASY;
-         }
-         if (nk_option_label(ctx, "hard", op == HARD)) {
-            op = HARD;
-         }
+      int i = 0;
+      for (i = 0; i < 256; ++i) {
+         Color *c = &data->snes->cgram.bgPalette256.colors[i];
 
-         nk_layout_row_dynamic(ctx, 25, 1);
-         nk_property_int(ctx, "Compression:", 0, &property, 100, 10, 1);
+         c->r = palette[i].r;
+         c->g = palette[i].g;
+         c->b = palette[i].b;
+      }
+   }
+}
+
+void guiUpdate(GUI *self, AppData *data) {
+   struct nk_context *ctx = &self->ctx;
+
+   
+
+   struct nk_rect winRect = nk_rect(1024, 0, 256, 512);  
+   static boolean openDemo = false;
+
+   if (nk_begin(ctx, "Options", winRect,
+     NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+   {
+      _buildPalette(ctx, data);
+
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
+         nk_layout_row_dynamic(ctx, 20, 1);
+         if (nk_button_label(ctx, "Nuklear Demo")) {
+            openDemo = true;
+            nk_window_show(ctx, "Overview", NK_SHOWN);
+         }
 
          nk_tree_pop(ctx);
       }
@@ -439,15 +391,12 @@ void guiUpdate(GUI *self, AppData *data) {
    }
    nk_end(ctx);
 
-   for (i = 0; i < 256; ++i) {
-      Color *c = &data->snes->cgram.bgPalette256.colors[i];
-
-      c->r = palette[i].r;
-      c->g = palette[i].g;
-      c->b = palette[i].b;
+   
+   if (openDemo) {
+      nuklear_overview(ctx);
    }
-
 }
+
 
 static void _render(GUI *self, Renderer *r) {
    OGLData *ogl = &self->ogl;

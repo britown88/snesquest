@@ -213,3 +213,5 @@ ModelManifest.xml
 
 *.VC.opendb
 *.VC.db
+/snesquest/memleak.txt
+/snesquest/allocReport.csv

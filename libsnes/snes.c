@@ -7,6 +7,17 @@ typedef struct {
    byte r, g, b, a;
 }rgba;
 
+typedef struct {
+   union {
+      int16_t raw;
+
+      struct {
+         byte value;
+      byte:7, sign : 1;
+      } twos;
+   };
+}NineBitSigned;
+
 static void _getSecondaryOAMData(OAM *self, byte idx, byte *x9Out, byte *szOut) {
    byte secIdx = idx / 4;
    switch (idx % 4) {
@@ -100,7 +111,10 @@ void snesRender(SNES *self, byte *out) {
          byte x9 = 0, sz = 0;
          _getSecondaryOAMData(&self->oam, slObjs[obj], &x9, &sz);
 
-         int16_t tX = x9 ? -(int16_t)spr->x : spr->x;
+         NineBitSigned _tX = { 0 };
+         _tX.twos.value = spr->x;
+         _tX.twos.sign = x9;
+         int16_t tX = _tX.raw;
 
          if (obj >= objCount) {
             continue;
