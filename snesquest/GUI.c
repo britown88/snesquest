@@ -401,7 +401,7 @@ void guiUpdate(GUI *self, AppData *data) {
       state = nk_widget(&bounds, ctx);
       if (state && state != NK_WIDGET_ROM) {
          struct nk_image img = nk_image_id((int)data->snesTexHandle);
-         nk_draw_image(nk_window_get_canvas(ctx), winBounds, &img, nk_rgb(255, 255, 255));
+         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
 
       }
 
