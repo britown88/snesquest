@@ -182,7 +182,8 @@ static void _renderNative(App *self) {
             self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { 255, 0, 0, 255 };
          }
          else {
-            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { 0, 0, 0, 255 };
+            byte gscale = rand() % 256;
+            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { gscale, gscale, gscale, 255 };
          }
       }      
    }

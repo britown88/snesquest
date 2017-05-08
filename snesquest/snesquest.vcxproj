@@ -159,6 +159,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     <ClCompile Include="DeviceContext.c" />
     <ClCompile Include="GUI.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="NuklearDemo.c" />
     <ClCompile Include="Renderer.c" />
   </ItemGroup>
   <ItemGroup>

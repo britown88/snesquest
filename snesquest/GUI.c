@@ -237,43 +237,88 @@ void guiInit(GUI *self) {
 static void _buildLayout(GUI *self) {
    struct nk_context *ctx = &self->ctx;
 
-   if (nk_begin(ctx, "Demo", nk_rect(1024, 0, 256, 200),
-      NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-      NK_WINDOW_CLOSABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-   {
-      nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, 25, 2);
-      nk_layout_row_push(ctx, 45);
-      if (nk_menu_begin_label(ctx, "FILE", NK_TEXT_LEFT, nk_vec2(120, 200))) {
-         nk_layout_row_dynamic(ctx, 30, 1);
-         nk_menu_item_label(ctx, "OPEN", NK_TEXT_LEFT);
-         nk_menu_item_label(ctx, "CLOSE", NK_TEXT_LEFT);
-         nk_menu_end(ctx);
-      }
-      nk_layout_row_push(ctx, 45);
-      if (nk_menu_begin_label(ctx, "EDIT", NK_TEXT_LEFT, nk_vec2(120, 200))) {
-         nk_layout_row_dynamic(ctx, 30, 1);
-         nk_menu_item_label(ctx, "COPY", NK_TEXT_LEFT);
-         nk_menu_item_label(ctx, "CUT", NK_TEXT_LEFT);
-         nk_menu_item_label(ctx, "PASTE", NK_TEXT_LEFT);
-         nk_menu_end(ctx);
-      }
-      nk_layout_row_end(ctx);
-      nk_menubar_end(ctx);
+   static boolean showColorPicker = false;
+   static int colorPickerPosSet = false;
 
+   struct nk_rect winRect = nk_rect(1024, 0, 256, 512);  
+
+   if (nk_begin(ctx, "Options", winRect,
+      NK_WINDOW_BORDER | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
+   {
       enum { EASY, HARD };
       static int op = EASY;
       static int property = 20;
       nk_layout_row_static(ctx, 30, 80, 1);
-      if (nk_button_label(ctx, "button"))
+      if (nk_button_label(ctx, "button")) {
          fprintf(stdout, "button pressed\n");
+         showColorPicker = true;
+
+         
+      }
+
+      //nk_group_end(ctx);
+
       nk_layout_row_dynamic(ctx, 30, 2);
-      if (nk_option_label(ctx, "easy", op == EASY)) op = EASY;
-      if (nk_option_label(ctx, "hard", op == HARD)) op = HARD;
+      if (nk_option_label(ctx, "easy", op == EASY)) {
+         op = EASY;
+      }
+      if (nk_option_label(ctx, "hard", op == HARD)) {
+         op = HARD;
+      }
+
       nk_layout_row_dynamic(ctx, 25, 1);
       nk_property_int(ctx, "Compression:", 0, &property, 100, 10, 1);
+
+      nk_layout_row_dynamic(ctx, 40, 2);
+      static struct nk_color color = { 0, 0, 0, 255 };
+      color = nk_color_picker(ctx, color, NK_RGB);
+
+      struct nk_rect space = { 0 };
+      enum nk_widget_layout_states state = nk_widget(&space, ctx);
+      if (state && state != NK_WIDGET_ROM) {
+         struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
+         nk_fill_rect(canvas, space, 0, color);
+      }
+
+      
+
+      if (showColorPicker) {
+         static struct nk_rect r = { 0, 0, 200, 200 };
+
+         const struct nk_input *in = &ctx->input;
+
+         if (!colorPickerPosSet) {
+            r.x = in->mouse.pos.x - winRect.x;
+            r.y = in->mouse.pos.y - winRect.y;
+            colorPickerPosSet = true;
+         }
+
+         if (nk_popup_begin(ctx, NK_POPUP_DYNAMIC, "Color Picker",
+            NK_WINDOW_TITLE | NK_WINDOW_BORDER | NK_WINDOW_MOVABLE, r)) {
+
+            nk_layout_row_dynamic(ctx, 25, 1);
+            nk_property_int(ctx, "Compression:", 0, &property, 100, 10, 1);
+            nk_popup_end(ctx);
+
+         }
+         else {
+            showColorPicker = false;
+         }         
+      }
+      
+
+      //nk_popup_close(ctx);
+
+
+
+      
    }
    nk_end(ctx);
+
+   
+
+   
+
 }
 
 static void _render(GUI *self, Renderer *r) {
@@ -351,6 +396,9 @@ static void _render(GUI *self, Renderer *r) {
 
 
 void guiRender(GUI *self, Renderer *r) {
-   _buildLayout(self);
+   //_buildLayout(self);
+
+   nuklear_overview(&self->ctx);
+
    _render(self, r);
 }

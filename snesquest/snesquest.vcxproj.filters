@@ -30,6 +30,9 @@
     <ClCompile Include="GUI.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="NuklearDemo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stb_image.h">

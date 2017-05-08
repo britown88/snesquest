@@ -14,3 +14,5 @@ int guiProcessInputEvent(GUI *self, SDL_Event *evt);
 void guiInit(GUI *self);
 void guiRender(GUI *self, Renderer *r);
 
+int nuklear_overview(struct nk_context *ctx);
+
