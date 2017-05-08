@@ -390,6 +390,21 @@ void textureBind(Texture *self, TextureSlot slot) {
       self->dirty = false;
    }
 }
+uint32_t textureGetGLHandle(Texture *self) {
+   if (!self->isLoaded) {
+      _textureAcquire(self);
+   }
+
+   if (self->dirty) {
+      glBindTexture(GL_TEXTURE_2D, self->glHandle);
+      glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self->size.x, self->size.y, GL_RGBA, GL_UNSIGNED_BYTE, self->pixels);
+      glBindTexture(GL_TEXTURE_2D, 0);
+      self->dirty = false;
+   }
+
+   return self->glHandle;
+}
+
 Int2 textureGetSize(Texture *self) {
    return self->size;
 }

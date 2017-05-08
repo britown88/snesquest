@@ -67,6 +67,9 @@ void textureSetPixels(Texture *self, byte *data);
 void textureBind(Texture *self, TextureSlot slot);
 Int2 textureGetSize(Texture *t);
 
+//because why not
+uint32_t textureGetGLHandle(Texture *self);
+
 
 
 typedef struct FBO_t FBO;

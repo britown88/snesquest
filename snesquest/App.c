@@ -33,7 +33,7 @@ typedef struct {
    ColorRGBA *snesBuffer;
 
    //testing
-   Texture *testImage;
+   Texture *logoImage;
 }RenderData;
 
 static void _setupRenderData(RenderData *self) {
@@ -46,10 +46,10 @@ static void _setupRenderData(RenderData *self) {
    TextureRequest request = {
       .repeatType = RepeatType_Clamp,
       .filterType = FilterType_Nearest,
-      .path = stringIntern("assets/test.png")
+      .path = stringIntern("assets/logo.png")
    };
 
-   self->testImage = textureManagerGetTexture(self->textureManager, request);
+   self->logoImage = textureManagerGetTexture(self->textureManager, request);
 
    FVF_Pos2_Tex2_Col4 vertices[] = {
       { .pos2 = { 0.0f, 0.0f },.tex2 = { 0.0f, 0.0f },.col4 = { 1.0f, 1.0f, 1.0f, 1.0f } },
@@ -228,18 +228,21 @@ static void _renderNative(App *self) {
    
 
    AppData appData;
+   appData.snesTexHandle = textureGetGLHandle(self->rData.snesTexture);
+   appData.logoTexHandle = textureGetGLHandle(self->rData.logoImage);
    appData.snes = &self->snes;
 
    deviceContextUpdateGUI(self->context, &appData);
 
    snesRender(&self->snes, self->rData.snesBuffer);
-   
    textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
-   _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
+   //_renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
+
+
 
    //test aramis
-   float aramisSize = 64.0f;
-   _renderBasicRectModel(self, self->rData.testImage, (Float2) { 0.0f, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
+   //float aramisSize = 64.0f;
+   //_renderBasicRectModel(self, self->rData.testImage, (Float2) { 0.0f, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
 }
 
 static void _prepareForNativeRender(App *self) {

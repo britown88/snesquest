@@ -6,9 +6,9 @@
 
 ColorRGBA snesColorConverTo24Bit(SNESColor in) {
    return (ColorRGBA) {
-      (in.r << 3),
-      (in.g << 3),
-      (in.b << 3),
+      ((in.r >> 2) << 5) + in.r,
+      ((in.g >> 2) << 5) + in.g,
+      ((in.b >> 2) << 5) + in.b,
       255
    };
 }

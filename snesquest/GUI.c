@@ -357,7 +357,7 @@ void guiUpdate(GUI *self, AppData *data) {
    static boolean openDemo = false;
 
    if (nk_begin(ctx, "Options", winRect,
-     NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+     NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
    {
       _buildPalette(ctx, data);
 
@@ -371,8 +371,46 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_tree_pop(ctx);
       }
 
+      nk_layout_row_dynamic(ctx, 160, 1);
+      enum nk_widget_layout_states state;
+      struct nk_rect bounds;
+      state = nk_widget(&bounds, ctx);
+      if (state && state != NK_WIDGET_ROM) {
+         struct nk_image img = nk_image_id((int)data->logoTexHandle);
+
+         bounds.h = bounds.w * (49.0f / 145.0f);
+         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgba(255, 255, 255, 128));
+      }
+
    }
    nk_end(ctx);
+
+   struct nk_rect viewerRect = nk_rect(0, 0, 1024, 720);
+   if (nk_begin(ctx, "Viewer", viewerRect,
+      NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+   {
+      struct nk_rect winBounds = nk_window_get_content_region(ctx);
+      nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
+
+
+      nk_layout_row_begin(ctx, NK_DYNAMIC, winBounds.w * (168.0f / 256.0), 1);
+      nk_layout_row_push(ctx, 1.0f);
+
+      enum nk_widget_layout_states state;
+      struct nk_rect bounds;
+      state = nk_widget(&bounds, ctx);
+      if (state && state != NK_WIDGET_ROM) {
+         struct nk_image img = nk_image_id((int)data->snesTexHandle);
+         nk_draw_image(nk_window_get_canvas(ctx), winBounds, &img, nk_rgb(255, 255, 255));
+
+      }
+
+      nk_layout_row_end(ctx);
+      nk_style_pop_vec2(ctx);
+   }
+   nk_end(ctx);
+
+
 
    
    if (openDemo) {
