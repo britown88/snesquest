@@ -175,6 +175,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
+    <ClInclude Include="AppData.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="DeviceContext.h" />
     <ClInclude Include="GUI.h" />

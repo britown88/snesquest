@@ -9,6 +9,8 @@
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 
+#include "AppData.h"
+
 
 struct DeviceContext_t {
    SDL_Window *window;
@@ -89,6 +91,10 @@ void deviceContextPrepareForRendering(DeviceContext *self) {
 
 void deviceContextRenderGUI(DeviceContext *self, Renderer *r) {
    guiRender(self->gui, r);
+}
+
+void deviceContextUpdateGUI(DeviceContext *self, AppData *data) {
+   guiUpdate(self->gui, data);
 }
 
 void deviceContextCommitRender(DeviceContext *self) {

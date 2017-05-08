@@ -2,12 +2,15 @@
 #include "DeviceContext.h"
 #include "Renderer.h"
 #include "Config.h"
+#include "libsnes/snes.h"
+#include "AppData.h"
 
 #include "shared/CheckedMemory.h"
 #include "libutils/Defs.h"
 #include "libutils/IncludeWindows.h"
 
 #include <time.h>
+
 
 const static Int2 nativeRes = { 1280, 720 };
 
@@ -168,26 +171,72 @@ static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 si
    r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
 }
 
-static int _testCounter = 0;
+static int testCount = 10000, testCount2 = 0;
 static void _renderNative(App *self) {
    Renderer *r = self->renderer;
+   int i = 0, j = 0;
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
 
+   SNES snes = { 0 };
 
-   int x, y;
-   for (y = 0; y < 168; ++y) {
-      for (x = 0; x < 512; ++x) {
-         if (_testCounter % 168 == y) {
-            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { 255, 0, 0, 255 };
-         }
-         else {
-            byte gscale = rand() % 256;
-            self->rData.snesBuffer[y * 512 + x] = (ColorRGBA) { gscale, gscale, gscale, 255 };
-         }
-      }      
+   Color *pColor = &snes.cgram.objPalettes.palette16s[0].colors[1];
+   pColor->r = 31;
+
+   pColor = &snes.cgram.objPalettes.palette16s[0].colors[2];
+   pColor->b = 31;
+
+   pColor = &snes.cgram.objPalettes.palette16s[0].colors[3];
+   pColor->g = 31;
+
+   Char16 *testChar = (Char16*)&snes.vram;
+
+   for (i = 0; i < 8; ++i) {
+      testChar->tiles[0].rows[i].planes[i % 2] = 255;
+      
+      (testChar + 1)->tiles[0].rows[i].planes[i % 2] = 255;
+      (testChar + 1)->tiles[0].rows[i].planes[1] = 255;
+
+      (testChar + 16)->tiles[0].rows[i].planes[i % 2] = 255;
+      (testChar + 16)->tiles[0].rows[i].planes[1] = 255;
+
+      (testChar + 17)->tiles[0].rows[i].planes[!(i % 2)] = 255;
    }
-   ++_testCounter;
+
+   snes.oam.primary[0].x = testCount %256;
+   snes.oam.primary[0].y = testCount%168;
+
+   snes.oam.primary[1].x = (testCount*2) % 256;
+   snes.oam.primary[1].y = (testCount*2) % 168;
+
+   ///*if (testCount2++ % 4 == 0)*/ {
+   //   ++testCount;
+   //}
+
+   for (j = 2; j < 128; ++j) {
+      snes.oam.primary[j].x = (int)(testCount * (j / 128.0)) % 256;
+      snes.oam.primary[j].y = (int)(testCount * (j / 128.0)) % 168;
+   }
+
+   ++testCount;
+
+   for (i = 0; i < 168; ++i) {
+      snes.hdma[i].objSizeAndBase.objSize = 3;
+   }
+   
+
+   //snes.oam.primary[0].x = 50;
+   //snes.oam.primary[0].y = 50;
+
+   snes.oam.objCount = 128;
+
+   AppData appData;
+   appData.snes = &snes;
+
+   deviceContextUpdateGUI(self->context, &appData);
+
+   snesRender(&snes, (byte*)self->rData.snesBuffer);
+   
    textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
    _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
 

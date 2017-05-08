@@ -16,3 +16,6 @@ void guiRender(GUI *self, Renderer *r);
 
 int nuklear_overview(struct nk_context *ctx);
 
+typedef struct AppData_t AppData;
+void guiUpdate(GUI *self, AppData *data);
+

@@ -15,7 +15,10 @@ int deviceContextCreateWindow(DeviceContext *self);
 void deviceContextPrepareForRendering(DeviceContext *self);
 void deviceContextCommitRender(DeviceContext *self);
 void deviceContextPollEvents(DeviceContext *self);
+
 void deviceContextRenderGUI(DeviceContext *self, Renderer *r);
+typedef struct AppData_t AppData;
+void deviceContextUpdateGUI(DeviceContext *self, AppData *data);
 
 Int2 deviceContextGetWindowSize(DeviceContext *self);
 Microseconds deviceContextGetTime(DeviceContext *self);

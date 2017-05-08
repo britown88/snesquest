@@ -2,6 +2,11 @@
 
 #include "libutils/Defs.h"
 
+#define SNES_SIZE_X 256
+#define SNES_SIZE_Y 168
+#define SNES_SCANLINE_WIDTH (SNES_SIZE_X * 2)
+#define SNES_SCANLINE_COUNT (SNES_SIZE_Y)
+
 #pragma pack(push, 1)
 
 typedef struct {
@@ -210,6 +215,10 @@ typedef struct {
          x9_2 : 1, sz_2 : 1,
          x9_3 : 1, sz_3 : 1;
    } secondary[32];
+
+   // need a way to know how many objs we have.  
+   // I believe this is probably internal on actual hgardweare? not sure
+   byte objCount;
 } OAM;
 
 // Registers Struct
@@ -517,11 +526,14 @@ typedef struct {
 
 }Registers;
 
-typedef struct {
+typedef struct SNES_t{
    CGRAM cgram;
    VRAM vram;
    OAM oam;
-   Registers hdma[168];
-} PPU;
+   Registers hdma[SNES_SCANLINE_COUNT];
+} SNES;
+
+//output is 512x168 32-bit color RGBA
+void snesRender(SNES *self, byte *out);
 
 #pragma pack(pop)
