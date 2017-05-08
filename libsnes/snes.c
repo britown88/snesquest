@@ -3,20 +3,15 @@
 #define OBJS_PER_LINE 32
 #define OBJ_TILES_PER_LINE 34
 
-typedef struct {
-   byte r, g, b, a;
-}rgba;
 
-typedef struct {
-   union {
-      int16_t raw;
-
-      struct {
-         byte value;
-      byte:7, sign : 1;
-      } twos;
+ColorRGBA snesColorConverTo24Bit(SNESColor in) {
+   return (ColorRGBA) {
+      (in.r << 3),
+      (in.g << 3),
+      (in.b << 3),
+      255
    };
-}NineBitSigned;
+}
 
 static void _getSecondaryOAMData(OAM *self, byte idx, byte *x9Out, byte *szOut) {
    byte secIdx = idx / 4;
@@ -40,19 +35,8 @@ static void _getSecondaryOAMData(OAM *self, byte idx, byte *x9Out, byte *szOut) 
    } 
 }
 
-static rgba _convert15bitColorTo24(Color in) {
-   rgba out;
-   out.a = 255;
-
-   out.r = (byte)((255.0f * in.r) / 31);
-   out.g = (byte)((255.0f * in.g) / 31);
-   out.b = (byte)((255.0f * in.b) / 31);
-
-   return out;
-}
-
 //output is 512x168 32-bit color RGBA
-void snesRender(SNES *self, byte *out) {
+void snesRender(SNES *self, ColorRGBA *out) {
    int x = 0, y = 0;
    byte layer = 0, obj = 0;
 
@@ -111,7 +95,7 @@ void snesRender(SNES *self, byte *out) {
          byte x9 = 0, sz = 0;
          _getSecondaryOAMData(&self->oam, slObjs[obj], &x9, &sz);
 
-         NineBitSigned _tX = { 0 };
+         TwosComplement9 _tX = { 0 };
          _tX.twos.value = spr->x;
          _tX.twos.sign = x9;
          int16_t tX = _tX.raw;
@@ -185,17 +169,17 @@ void snesRender(SNES *self, byte *out) {
             }
          }
 
-         rgba *outc = ((rgba*)out) + (y * SNES_SCANLINE_WIDTH) + (x*2);
+         ColorRGBA *outc = out + (y * SNES_SCANLINE_WIDTH) + (x*2);
          if (objPalIndex) {
-            Color c = self->cgram.objPalettes.palette16s[objPalette].colors[objPalIndex];            
-            rgba color24 = _convert15bitColorTo24(c);
+            SNESColor c = self->cgram.objPalettes.palette16s[objPalette].colors[objPalIndex];
+            ColorRGBA color24 = snesColorConverTo24Bit(c);
 
             *outc = color24;
             *(outc + 1) = color24;
          }
          else {
-            *outc = (rgba) {0, 0, 0, 255};
-            *(outc + 1) = (rgba) { 0, 0, 0, 255 };
+            *outc = (ColorRGBA) {0, 0, 0, 255};
+            *(outc + 1) = (ColorRGBA) { 0, 0, 0, 255 };
          }
       }
    }

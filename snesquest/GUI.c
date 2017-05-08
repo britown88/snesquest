@@ -237,41 +237,29 @@ void guiInit(GUI *self) {
    _initOGLData(&self->ogl);
 }
 
-static struct nk_color _convert15bitColorTo24(struct nk_color in) {
-   struct nk_color out;
-   out.a = 255;
-
-   out.r = (byte)((255.0f * in.r) / 31);
-   out.g = (byte)((255.0f * in.g) / 31);
-   out.b = (byte)((255.0f * in.b) / 31);
-
-   return out;
+static struct nk_color _colorToNKColor(ColorRGBA in) {
+   return nk_rgb(in.r, in.g, in.b);
 }
+
+
 
 static void _buildPalette(struct nk_context *ctx, AppData *data) {
 
    static int selectedPalette = 0;
-   static struct nk_color palette[256] = { 0 };
+   static SNESColor palette[256] = { 0 };
 
    if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
 
       static boolean firstLoad = true;
       struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
-      if (firstLoad) {
-         int i = 0;
-         for (i = 0; i < 256; ++i) {
-            Color c = data->snes->cgram.bgPalette256.colors[i];
-            palette[i].r = c.r;
-            palette[i].g = c.g;
-            palette[i].b = c.b;
-
-         }
+      //if (firstLoad) {
+         memcpy(palette, data->snes->cgram.bgPalette256.colors, sizeof(SNESColor) * 256);
          firstLoad = false;
-      }
+      //}
 
       //palette table
-      const int palRowHeight = 12, palRectWidth = 12;
+      const float palRowHeight = 12, palRectWidth = 12;
       nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
       nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 2);
       int y = 0;
@@ -292,7 +280,9 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
 
                struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
                pBounds.x += x * palRectWidth;
-               nk_fill_rect(canvas, pBounds, 0, _convert15bitColorTo24(palette[y * 16 + x]));
+
+               ColorRGBA c = snesColorConverTo24Bit(palette[y * 16 + x]);
+               nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
 
                if (nk_input_mouse_clicked(&ctx->input, NK_BUTTON_LEFT, pBounds)) {
                   selectedPalette = y * 16 + x;
@@ -319,7 +309,9 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
          nk_layout_row_push(ctx, 100);
          nk_labelf(ctx, NK_TEXT_RIGHT, "Selected: %i", selectedPalette);
          nk_layout_row_push(ctx, 50);
-         nk_button_color(ctx, _convert15bitColorTo24(palette[selectedPalette]));
+
+         ColorRGBA c = snesColorConverTo24Bit(palette[selectedPalette]);
+         nk_button_color(ctx, _colorToNKColor(c));
          nk_layout_row_end(ctx);
 
          nk_layout_row_begin(ctx, NK_STATIC, 20, 3);
@@ -354,23 +346,14 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
 
       nk_tree_pop(ctx);
 
-      int i = 0;
-      for (i = 0; i < 256; ++i) {
-         Color *c = &data->snes->cgram.bgPalette256.colors[i];
-
-         c->r = palette[i].r;
-         c->g = palette[i].g;
-         c->b = palette[i].b;
-      }
+      memcpy(data->snes->cgram.bgPalette256.colors, palette, sizeof(SNESColor) * 256);
    }
 }
 
 void guiUpdate(GUI *self, AppData *data) {
    struct nk_context *ctx = &self->ctx;
 
-   
-
-   struct nk_rect winRect = nk_rect(1024, 0, 256, 512);  
+   struct nk_rect winRect = nk_rect(1024, 0, 256, 720);
    static boolean openDemo = false;
 
    if (nk_begin(ctx, "Options", winRect,

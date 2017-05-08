@@ -91,11 +91,43 @@ struct App_t {
    DeviceContext *context;   
 
 
-   //text stuff
    RenderData rData;
+   SNES snes;
 };
 
+static void _setupTestSNES(SNES *snes) {
+   int i = 0;
 
+   SNESColor *pColor = &snes->cgram.objPalettes.palette16s[0].colors[1];
+   pColor->r = 31;
+
+   pColor = &snes->cgram.objPalettes.palette16s[0].colors[2];
+   pColor->b = 31;
+
+   pColor = &snes->cgram.objPalettes.palette16s[0].colors[3];
+   pColor->g = 31;
+
+   Char16 *testChar = (Char16*)&snes->vram;
+
+   for (i = 0; i < 8; ++i) {
+      testChar->tiles[0].rows[i].planes[i % 2] = 255;
+
+      (testChar + 1)->tiles[0].rows[i].planes[i % 2] = 255;
+      (testChar + 1)->tiles[0].rows[i].planes[1] = 255;
+
+      (testChar + 16)->tiles[0].rows[i].planes[i % 2] = 255;
+      (testChar + 16)->tiles[0].rows[i].planes[1] = 255;
+
+      (testChar + 17)->tiles[0].rows[i].planes[!(i % 2)] = 255;
+   }
+
+   
+   for (i = 0; i < 168; ++i) {
+      snes->hdma[i].objSizeAndBase.objSize = 3;
+   }
+
+   snes->oam.objCount = 128;
+}
 
 App *appCreate(Renderer *renderer, DeviceContext *context) {
    App *out = checkedCalloc(1, sizeof(App));
@@ -103,7 +135,9 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    out->renderer = renderer;
    out->context = context;
 
-   _setupRenderData(&out->rData);   
+   _setupRenderData(&out->rData); 
+
+   _setupTestSNES(&out->snes);
 
    return out;
 }
@@ -178,71 +212,34 @@ static void _renderNative(App *self) {
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
 
-   SNES snes = { 0 };
 
-   Color *pColor = &snes.cgram.objPalettes.palette16s[0].colors[1];
-   pColor->r = 31;
+   self->snes.oam.primary[0].x = testCount % 256;
+   self->snes.oam.primary[0].y = testCount % 168;
 
-   pColor = &snes.cgram.objPalettes.palette16s[0].colors[2];
-   pColor->b = 31;
-
-   pColor = &snes.cgram.objPalettes.palette16s[0].colors[3];
-   pColor->g = 31;
-
-   Char16 *testChar = (Char16*)&snes.vram;
-
-   for (i = 0; i < 8; ++i) {
-      testChar->tiles[0].rows[i].planes[i % 2] = 255;
-      
-      (testChar + 1)->tiles[0].rows[i].planes[i % 2] = 255;
-      (testChar + 1)->tiles[0].rows[i].planes[1] = 255;
-
-      (testChar + 16)->tiles[0].rows[i].planes[i % 2] = 255;
-      (testChar + 16)->tiles[0].rows[i].planes[1] = 255;
-
-      (testChar + 17)->tiles[0].rows[i].planes[!(i % 2)] = 255;
-   }
-
-   snes.oam.primary[0].x = testCount %256;
-   snes.oam.primary[0].y = testCount%168;
-
-   snes.oam.primary[1].x = (testCount*2) % 256;
-   snes.oam.primary[1].y = (testCount*2) % 168;
-
-   ///*if (testCount2++ % 4 == 0)*/ {
-   //   ++testCount;
-   //}
+   self->snes.oam.primary[1].x = (testCount * 2) % 256;
+   self->snes.oam.primary[1].y = (testCount * 2) % 168;
 
    for (j = 2; j < 128; ++j) {
-      snes.oam.primary[j].x = (int)(testCount * (j / 128.0)) % 256;
-      snes.oam.primary[j].y = (int)(testCount * (j / 128.0)) % 168;
+      self->snes.oam.primary[j].x = (int)(testCount * (j / 128.0)) % 256;
+      self->snes.oam.primary[j].y = (int)(testCount * (j / 128.0)) % 168;
    }
 
    ++testCount;
-
-   for (i = 0; i < 168; ++i) {
-      snes.hdma[i].objSizeAndBase.objSize = 3;
-   }
    
 
-   //snes.oam.primary[0].x = 50;
-   //snes.oam.primary[0].y = 50;
-
-   snes.oam.objCount = 128;
-
    AppData appData;
-   appData.snes = &snes;
+   appData.snes = &self->snes;
 
    deviceContextUpdateGUI(self->context, &appData);
 
-   snesRender(&snes, (byte*)self->rData.snesBuffer);
+   snesRender(&self->snes, self->rData.snesBuffer);
    
    textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
    _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
 
    //test aramis
    float aramisSize = 64.0f;
-   _renderBasicRectModel(self, self->rData.testImage, (Float2) { nativeRes.x - aramisSize, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
+   _renderBasicRectModel(self, self->rData.testImage, (Float2) { 0.0f, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
 }
 
 static void _prepareForNativeRender(App *self) {

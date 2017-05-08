@@ -9,37 +9,6 @@
 
 typedef struct AppData_t AppData;
 
-typedef struct {
-   byte r, g, b;
-} ColorRGB;
-
-typedef struct {
-   byte r, g, b, a;
-} ColorRGBA;
-
-typedef struct {
-   float r, g, b;
-} ColorRGBf;
-
-typedef struct {
-   float r, g, b, a;
-} ColorRGBAf;
-
-extern const ColorRGBAf White;
-extern const ColorRGBAf Gray;
-extern const ColorRGBAf DkGray;
-extern const ColorRGBAf LtGray;
-extern const ColorRGBAf Black;
-extern const ColorRGBAf Red;
-extern const ColorRGBAf DkRed;
-extern const ColorRGBAf Green;
-extern const ColorRGBAf DkGreen;
-extern const ColorRGBAf Blue;
-extern const ColorRGBAf DkBlue;
-extern const ColorRGBAf Cyan;
-extern const ColorRGBAf Yellow;
-extern const ColorRGBAf Magenta;
-
 typedef struct Shader_t Shader;
 typedef uintptr_t Uniform;
 typedef uintptr_t TextureSlot;

@@ -148,6 +148,7 @@
     <ClCompile Include="BitBuffer.c" />
     <ClCompile Include="BitTwiddling.c" />
     <ClCompile Include="Coroutine.c" />
+    <ClCompile Include="Defs.c" />
     <ClCompile Include="Dijkstras.c" />
     <ClCompile Include="FSM.c" />
     <ClCompile Include="IntrusiveHeap.c" />

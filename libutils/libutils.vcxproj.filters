@@ -134,5 +134,8 @@
     <ClCompile Include="Matrix.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Defs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

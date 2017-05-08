@@ -9,25 +9,6 @@
 
 #pragma pack(push, 1)
 
-typedef struct {
-   union {
-      struct {
-         byte2 integer : 12, sign : 1;
-      }twosComplement;
-
-      byte2 raw;
-   };
-} TwosComplement;
-
-typedef struct {
-   union {
-      struct {
-         byte2 fraction : 8, integer : 7, sign : 1;
-      } fixedPoint;
-
-      byte2 raw;
-   };
-} FixedPoint;
 
 // color is 15-bit BGR, stored in 2 bytes
 // keep in mind "BGR" is writen lef to right MSB to LSB
@@ -35,42 +16,45 @@ typedef struct {
 // 0bbbbbgg gggrrrrr
 typedef struct {
    byte2 r : 5, g : 5, b : 5;
-} Color;
+} SNESColor;
+
+ColorRGBA snesColorConverTo24Bit(SNESColor in);
+
 
 typedef struct {
    union {
       //256-color bg palettes use all of cgram.  reminder that DCM doesnt use these
       struct {
-         Color colors[256];
+         SNESColor colors[256];
       } bgPalette256;
 
       //BG2 in mode7-extbg uses the first 128 colors
       struct {
-         Color colors[128];
+         SNESColor colors[128];
       } bgPalette128;
 
       //most of the time, bgs use one of the first 8 16-color palettes in cgram
       struct {
-         Color colors[16];
+         SNESColor colors[16];
       } bgPalette16s[8];
 
       //4-color bgs (NOT in mode 0) use the first 2 16-color bg pals split into 8 4-color pals
       struct {
-         Color colors[4];
+         SNESColor colors[4];
       } bgPalette4s[8];
 
       //mode 0 splits the bg pals into 4 (one for each bg) sets of 8 4-color palettes
       struct {
          struct {
-            Color colors[4];
+            SNESColor colors[4];
          } palette4s[8];
       } mode0BGPalettes[4];
 
       //objs always use one of 8 16-color palettes that sit in the 2nd half of cgram
       struct {
-         Color __unused[16][8];
+         SNESColor __unused[16][8];
          struct {
-            Color colors[16];
+            SNESColor colors[16];
          } palette16s[8];
       } objPalettes;
    };   
@@ -338,7 +322,7 @@ typedef struct {
 
          struct {
             //using 13-bit 2's-complement
-            TwosComplement horzOffset, vertOffset;
+            TwosComplement13 horzOffset, vertOffset;
          } M7; //only use this for BG1!    
       };
    } bgScroll[4];
@@ -376,7 +360,7 @@ typedef struct {
    // Note: Horz/Vert scrolls for mode7 are set in bgScroll[0]
    struct {
       // using 13-bit 2's-complement
-      TwosComplement x, y;
+      TwosComplement13 x, y;
    } mode7Origin;
 
 
@@ -503,7 +487,7 @@ typedef struct {
 
    // 2132: Color Math Subscreen Backdrop Color
    // This is the color used for the subscreen pixel if all BJ/OBJs are transparent at that pixel (or if enableBGOBJ is 0)
-   Color fixedColorData;
+   SNESColor fixedColorData;
 
 
    // 2133: Some special screen functionalities, we only realy care about extbg and hires
@@ -534,6 +518,6 @@ typedef struct SNES_t{
 } SNES;
 
 //output is 512x168 32-bit color RGBA
-void snesRender(SNES *self, byte *out);
+void snesRender(SNES *self, ColorRGBA *out);
 
 #pragma pack(pop)
