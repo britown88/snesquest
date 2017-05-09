@@ -24,6 +24,7 @@
 
 #include "libsnes/snes.h"
 #include "AppData.h"
+#include "DeviceContext.h"
 
 
 typedef struct {
@@ -241,6 +242,56 @@ static struct nk_color _colorToNKColor(ColorRGBA in) {
    return nk_rgb(in.r, in.g, in.b);
 }
 
+typedef struct {
+   ColorRGBA original;
+   ColorRGBA bit15;
+   int hitCount;
+}ColorEntry;
+
+#define VectorT ColorEntry
+#include "libutils/Vector_Create.h"
+
+static void _processImage(Texture *tex, ColorEntry *out) {
+   //ColorRGBA *pixels = textureGetPixels(tex);
+   //Int2 sz = textureGetSize(tex);
+   //int x, y;
+
+   //vec(ColorEntry) *entries = vecCreate(ColorEntry)(NULL);
+
+   //memset(out, 0, sizeof(ColorEntry) * 16);
+
+   //for (y = 0; y < sz.y; ++y) {
+   //   for (x = 0; x < sz.x; ++x) {
+   //      ColorRGBA c = pixels[y*sz.x + x];
+   //      if (c.a == 255) {
+   //         ColorRGBA bit15 = {c.r << 3, c.g << 3, c.b <<3, 255};
+   //         boolean found = false;
+   //         vecForEach(ColorEntry, entry, entries, {
+   //            if (entry->bit15.r == bit15.r && 
+   //               entry->bit15.g == bit15.g && 
+   //               entry->bit15.b == bit15.b) {
+   //               found = true;
+   //               ++entry->hitCount;
+   //            }
+   //         });
+
+   //         if (!found) {
+   //            ColorEntry newEntry = { 
+   //               .original = {c.r, c.g, c.b, c.a},
+   //               .bit15 = { bit15.r, bit15.g, bit15.b, bit15.a },
+   //               .hitCount = 1 
+   //            };
+   //            vecPushBack(ColorEntry)(entries, &newEntry);
+   //         }
+   //      }
+   //   }
+   //}
+
+
+
+   //vecDestroy(ColorEntry)(entries);
+}
+
 
 
 static void _buildPalette(struct nk_context *ctx, AppData *data) {
@@ -248,7 +299,7 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
    static int selectedPalette = 0;
    static SNESColor palette[256] = { 0 };
 
-   if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
+   if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MINIMIZED)) {
 
       static boolean firstLoad = true;
       struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
@@ -350,11 +401,107 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
    }
 }
 
+static void _buildImporter(struct nk_context *ctx, AppData *data) {
+   struct nk_rect winRect = nk_rect((1280-825)/2, (720 - 450) / 2, 825, 450);
+   static boolean refreshFiles = true;
+   static String *selectedFile = NULL;
+   static Texture *ogTex = NULL;
+
+   if (nk_begin(ctx, "Character Importer", winRect,
+      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE))
+   {
+      static vec(StringPtr) *files = NULL;
+
+      if (!files || refreshFiles) {
+         if (files) {
+            vecDestroy(StringPtr)(files);
+            selectedFile = NULL;
+         }
+         deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
+         refreshFiles = false;
+      }      
+
+      int i = 0;
+      struct nk_rect winBounds = nk_window_get_content_region(ctx);
+
+      nk_layout_space_begin(ctx, NK_STATIC, 0, 64);
+      nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5 ));
+      if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
+         vecForEach(StringPtr, str, files, {
+            nk_layout_row_dynamic(ctx, 20, 1);
+            if (nk_button_label(ctx, c_str(*str))) {
+
+               if (*str != selectedFile) {
+                  selectedFile = *str;
+
+                  TextureRequest request = {
+                     .repeatType = RepeatType_Clamp,
+                     .filterType = FilterType_Nearest,
+                     .path = stringIntern(c_str(selectedFile))
+                  };
+
+                  ogTex = textureManagerGetTexture(data->textureManager, request);
+
+                  ColorRGBA pal[16] = { 0 };
+                  _processImage(ogTex, pal);
+               }
+               
+            }
+         });
+         nk_group_end(ctx);
+      }
+
+      nk_layout_space_push(ctx, nk_rect(190, 0, 300, 300));
+      if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+         if (ogTex) {
+            nk_layout_row_begin(ctx, NK_DYNAMIC, 250, 1);
+            nk_layout_row_push(ctx, 1.0f);
+
+            enum nk_widget_layout_states state;
+            struct nk_rect bounds;
+            state = nk_widget(&bounds, ctx);
+            if (state && state != NK_WIDGET_ROM) {
+               struct nk_image img = nk_image_id((int)textureGetGLHandle(ogTex));
+               nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+            }
+            nk_layout_row_end(ctx);
+         }
+
+         nk_group_end(ctx);
+      }
+
+      nk_layout_space_push(ctx, nk_rect(190, 310, 300, 70));
+      if (nk_group_begin(ctx, "Unique Colors", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+         nk_group_end(ctx);
+      }
+
+      nk_layout_space_push(ctx, nk_rect(500, 0, 300, 300));
+      if (nk_group_begin(ctx, "Result", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+         nk_group_end(ctx);
+      }
+
+      nk_layout_space_push(ctx, nk_rect(500, 310, 300, 70));
+      if (nk_group_begin(ctx, "Encoded Palette", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+         nk_group_end(ctx);
+      }
+
+
+
+      nk_layout_space_end(ctx);
+
+   }
+
+   nk_end(ctx);
+}
+
 void guiUpdate(GUI *self, AppData *data) {
    struct nk_context *ctx = &self->ctx;
 
    struct nk_rect winRect = nk_rect(1024, 0, 256, 720);
-   static boolean openDemo = false;
+   static boolean openDemo = false, openImporter = true;
 
    if (nk_begin(ctx, "Options", winRect,
      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
@@ -363,9 +510,16 @@ void guiUpdate(GUI *self, AppData *data) {
 
       if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
          nk_layout_row_dynamic(ctx, 20, 1);
+         if (nk_button_label(ctx, "Character Importer")) {
+            openImporter = true;
+            nk_window_show(ctx, "Character Importer", NK_SHOWN);
+            nk_window_set_focus(ctx, "Character Importer");
+         }
+         nk_layout_row_dynamic(ctx, 20, 1);
          if (nk_button_label(ctx, "Nuklear Demo")) {
             openDemo = true;
             nk_window_show(ctx, "Overview", NK_SHOWN);
+            nk_window_set_focus(ctx, "Overview");
          }
 
          nk_tree_pop(ctx);
@@ -398,7 +552,18 @@ void guiUpdate(GUI *self, AppData *data) {
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);
       if (state && state != NK_WIDGET_ROM) {
-         struct nk_image img = nk_image_id((int)data->logoTexHandle);
+         static Texture *logo = NULL;
+
+         if (!logo) {
+            TextureRequest request = {
+               .repeatType = RepeatType_Clamp,
+               .filterType = FilterType_Nearest,
+               .path = stringIntern("assets/logo.png")
+            };
+            logo = textureManagerGetTexture(data->textureManager, request);
+         }
+
+         struct nk_image img = nk_image_id((int)textureGetGLHandle(logo));
 
          bounds.h = bounds.w * (49.0f / 145.0f);
          nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgba(255, 255, 255, 128));
@@ -409,7 +574,7 @@ void guiUpdate(GUI *self, AppData *data) {
 
    struct nk_rect viewerRect = nk_rect(0, 0, 1024, 720);
    if (nk_begin(ctx, "Viewer", viewerRect,
-      NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+      NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
    {
       struct nk_rect winBounds = nk_window_get_content_region(ctx);
       nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
@@ -432,7 +597,9 @@ void guiUpdate(GUI *self, AppData *data) {
    }
    nk_end(ctx);
 
-
+   if (openImporter) {
+      _buildImporter(ctx, data);
+   }
 
    
    if (openDemo) {

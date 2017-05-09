@@ -70,6 +70,8 @@ Int2 textureGetSize(Texture *t);
 //because why not
 uint32_t textureGetGLHandle(Texture *self);
 
+const ColorRGBA *textureGetPixels(Texture *self);
+
 
 
 typedef struct FBO_t FBO;

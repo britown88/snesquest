@@ -49,7 +49,7 @@ static void _setupRenderData(RenderData *self) {
       .path = stringIntern("assets/logo.png")
    };
 
-   self->logoImage = textureManagerGetTexture(self->textureManager, request);
+   //self->logoImage = textureManagerGetTexture(self->textureManager, request);
 
    FVF_Pos2_Tex2_Col4 vertices[] = {
       { .pos2 = { 0.0f, 0.0f },.tex2 = { 0.0f, 0.0f },.col4 = { 1.0f, 1.0f, 1.0f, 1.0f } },
@@ -139,6 +139,8 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    _setupRenderData(&out->rData); 
 
    _setupTestSNES(&out->snes);
+
+   out->data.textureManager = out->rData.textureManager;
 
    return out;
 }
@@ -297,7 +299,6 @@ static void _renderNative(App *self) {
 
    self->data.snes = &self->snes;
    self->data.snesTexHandle = textureGetGLHandle(self->rData.snesTexture);
-   self->data.logoTexHandle = textureGetGLHandle(self->rData.logoImage);
    
 
    deviceContextUpdateGUI(self->context, &self->data);

@@ -405,6 +405,13 @@ uint32_t textureGetGLHandle(Texture *self) {
    return self->glHandle;
 }
 
+const ColorRGBA *textureGetPixels(Texture *self) {
+   if (!self->isLoaded) {
+      _textureAcquire(self);
+   }
+   return self->pixels;
+}
+
 Int2 textureGetSize(Texture *self) {
    return self->size;
 }

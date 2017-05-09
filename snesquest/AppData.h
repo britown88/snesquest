@@ -4,6 +4,7 @@
 #include "libutils/Rect.h"
 
 typedef struct SNES_t SNES;
+typedef struct TextureManager_t TextureManager;
 
 typedef struct {
    Int2 nativeResolution;
@@ -16,10 +17,11 @@ typedef struct {
 
 typedef struct AppData_t {
    SNES *snes;
+   TextureManager *textureManager;
 
    const Constants constants;
    Variables variables;
-   uint32_t snesTexHandle, logoTexHandle;
+   uint32_t snesTexHandle;
    int testX, testY;
    boolean snesRenderWhite;
 }AppData;
