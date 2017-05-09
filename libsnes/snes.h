@@ -88,21 +88,31 @@ typedef struct {
 
 
       // For "Offsset-per-tile" modes (2, 4, and 6), BG3 reads its tiles differently
-      // This data horizontally offsets the corresponding tile in BG's 1/2
+      // Rather than BG3 being a 32x32 tile map, in these modes it is effectively 32x2
+      //    Row 0 governs the horizontal offset of the corresponding column in bgs 1/2
+      //    Row 1 governs the vertical offset of the corresponding column in bgs 1/2
+      // Additionally, tiles read for the column PRECEDING in BG3
+      //    Tile1 in BG1 utilizes tile 0 in BG3 for horz offset and tile 16 for vert offset
+      //    Tile0 is never affected by OPT
+      // Mode 4 was unable to read both vertical and horizontal due to bandwidth constraints
+      //    Thus, only row0 was read and bit15 "applyToVertical" determines whether to use offset for vert or horz
+      // Finally, horizontal offset IGNORES THE LOWER 3 BITS when applying offset
+      //    Thus, tiles can only be offset in 8-pixel increments
+      //    The lower 3 bits of  x+bgnHorzOffs supplements this for smooth horizontal scrolling
+      // Fun tip: bg's 1 and 3 can be set to have different tile size  and that works :S
       struct {
-         
          byte2 
-            //amount to offset
+            //unsigned offset amount, for horizontal the 3LSBs are ignored (8-pixel steps)
             offset : 10, 
-            
+
             //unused
             : 3, 
 
-            // which BGs to apply this to (does nothing if not applicable
+            //which BGs to apply OPT to, note that applytoBG2 only makes sense in Mode 2
             applyToBG1 : 1, applyToBG2 : 1, 
-            
-            // in mode 4 only, value of 1 here causes avertical offset instead of horizontal
-            applyToHV : 1;
+
+            //in mode4, determine whether offset 
+            applyToVertical : 1;
       } opt; // offset per tile
 
 
