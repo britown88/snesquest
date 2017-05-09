@@ -371,7 +371,29 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_tree_pop(ctx);
       }
 
-      nk_layout_row_dynamic(ctx, 160, 1);
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Testing", NK_MINIMIZED)) {
+
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_checkbox_label(ctx, "Debug Render", &data->snesRenderWhite);
+
+         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
+         nk_layout_row_push(ctx, 0.35f);
+         nk_labelf(ctx, NK_TEXT_RIGHT, "TestX: %i", data->testX);
+         nk_layout_row_push(ctx, 0.65f);
+         data->testX = nk_slide_int(ctx, -256, data->testX, 256, 1);
+         nk_layout_row_end(ctx);
+
+         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
+         nk_layout_row_push(ctx, 0.35f);
+         nk_labelf(ctx, NK_TEXT_RIGHT, "TestY: %i", data->testY);
+         nk_layout_row_push(ctx, 0.65f);
+         data->testY = nk_slide_int(ctx, 0, data->testY, 255, 1);
+         nk_layout_row_end(ctx);
+
+         nk_tree_pop(ctx);
+      }
+
+      nk_layout_row_dynamic(ctx, 0, 1);
       enum nk_widget_layout_states state;
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);

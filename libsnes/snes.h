@@ -518,6 +518,9 @@ typedef struct SNES_t{
 } SNES;
 
 //output is 512x168 32-bit color RGBA
-void snesRender(SNES *self, ColorRGBA *out);
+enum {
+   SNES_RENDER_DEBUG_WHITE = 1<<0
+};
+void snesRender(SNES *self, ColorRGBA *out, int flags);
 
 #pragma pack(pop)

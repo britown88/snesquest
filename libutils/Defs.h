@@ -36,7 +36,7 @@ typedef struct {
    union {
       sbyte2 raw;
       struct {
-         byte value; byte:7, sign : 1;
+         byte value; byte unused:7, sign : 1;
       } twos;
    };
 } TwosComplement9;

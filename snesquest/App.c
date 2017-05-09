@@ -93,6 +93,7 @@ struct App_t {
 
    RenderData rData;
    SNES snes;
+   AppData data;
 };
 
 static void _setupTestSNES(SNES *snes) {
@@ -208,33 +209,106 @@ static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 si
 static int testCount = 10000, testCount2 = 0;
 static void _renderNative(App *self) {
    Renderer *r = self->renderer;
-   int i = 0, j = 0;
+   int x = 0, y = 0;
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
 
+   for (y = 0; y < 5; ++y) {
+      for (x = 0; x < 8; ++x) {
+         int idx = y * 8 + x;
 
-   self->snes.oam.primary[0].x = testCount % 256;
-   self->snes.oam.primary[0].y = testCount % 168;
 
-   self->snes.oam.primary[1].x = (testCount * 2) % 256;
-   self->snes.oam.primary[1].y = (testCount * 2) % 168;
 
-   for (j = 2; j < 128; ++j) {
-      self->snes.oam.primary[j].x = (int)(testCount * (j / 128.0)) % 256;
-      self->snes.oam.primary[j].y = (int)(testCount * (j / 128.0)) % 168;
+         TwosComplement9 testX = { self->data.testX + x*34 };
+         if (testX.raw >= 256) {
+            testX.raw -= 512;
+         }
+
+         switch (idx % 4) {
+         case 0:
+            self->snes.oam.secondary[idx / 4].x9_0 = testX.twos.sign;
+            break;
+         case 1:
+            self->snes.oam.secondary[idx / 4].x9_1 = testX.twos.sign;
+            break;
+         case 2:
+            self->snes.oam.secondary[idx / 4].x9_2 = testX.twos.sign;
+            break;
+         case 3:
+            self->snes.oam.secondary[idx / 4].x9_3 = testX.twos.sign;
+            break;
+         }
+         //self->snes.oam.secondary[idx].x9_0 = testX.twos.sign;
+         self->snes.oam.primary[idx].x = testX.twos.value;
+         self->snes.oam.primary[idx].y = self->data.testY + y*34;
+
+         if (x % 2) {
+            self->snes.oam.primary[idx].flipX = 1;
+         }
+
+         if (y % 2) {
+            self->snes.oam.primary[idx].flipY = 1;
+         }
+      }
    }
 
-   ++testCount;
+   self->snes.oam.objCount = 5*8;
+
+
    
 
-   AppData appData;
-   appData.snesTexHandle = textureGetGLHandle(self->rData.snesTexture);
-   appData.logoTexHandle = textureGetGLHandle(self->rData.logoImage);
-   appData.snes = &self->snes;
+   //TwosComplement9 testX2 = { (sbyte2)(((testCount * 2) % (256 + 32)) - 32) };
+   //self->snes.oam.secondary[0].x9_1 = testX2.twos.sign;
+   //self->snes.oam.primary[1].x = testX2.twos.value;
+   //self->snes.oam.primary[1].y = ((testCount * 2) % (168 + 32)) - 16;
 
-   deviceContextUpdateGUI(self->context, &appData);
+   //self->snes.oam.primary[1].x = (testCount * 2) % 256;
+   //self->snes.oam.primary[1].y = (testCount * 2) % 248;
 
-   snesRender(&self->snes, self->rData.snesBuffer);
+   //for (j = 2; j < 128; ++j) {
+   //   //self->snes.oam.primary[j].x = (testCount +j) % 256;
+   //   //self->snes.oam.primary[j].y = (testCount +j*j) % 248;
+
+
+   //   TwosComplement9 testX = { (sbyte2)(testCount + j % (256 + 32) - 32) };
+
+   //   switch (j % 4) {
+   //   case 0:
+   //      self->snes.oam.secondary[j / 4].x9_0 = testX.twos.sign;
+   //      break;
+   //   case 1:
+   //      self->snes.oam.secondary[j / 4].x9_1 = testX.twos.sign;
+   //      break;
+   //   case 2:
+   //      self->snes.oam.secondary[j / 4].x9_2 = testX.twos.sign;
+   //      break;
+   //   case 3:
+   //      self->snes.oam.secondary[j / 4].x9_3 = testX.twos.sign;
+   //      break;
+   //   }
+   //   
+   //   self->snes.oam.primary[j].x = testX.twos.value;
+   //   self->snes.oam.primary[j].y = ((testCount + j) % (168 + 32)) - 16;
+
+   //}
+
+   
+   ++testCount;
+
+   self->data.snes = &self->snes;
+   self->data.snesTexHandle = textureGetGLHandle(self->rData.snesTexture);
+   self->data.logoTexHandle = textureGetGLHandle(self->rData.logoImage);
+   
+
+   deviceContextUpdateGUI(self->context, &self->data);
+
+   int renderFlags = 0;
+
+   if (self->data.snesRenderWhite) {
+      renderFlags |= SNES_RENDER_DEBUG_WHITE;
+   }
+
+   snesRender(&self->snes, self->rData.snesBuffer, renderFlags);
    textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
    //_renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
 

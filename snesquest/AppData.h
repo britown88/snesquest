@@ -20,4 +20,6 @@ typedef struct AppData_t {
    const Constants constants;
    Variables variables;
    uint32_t snesTexHandle, logoTexHandle;
+   int testX, testY;
+   boolean snesRenderWhite;
 }AppData;

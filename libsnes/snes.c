@@ -25,18 +25,18 @@ static void _getSecondaryOAMData(OAM *self, byte idx, byte *x9Out, byte *szOut) 
       *szOut = self->secondary[secIdx].sz_1;
       break;
    case 2:
-      *x9Out = self->secondary[secIdx].x9_1;
-      *szOut = self->secondary[secIdx].sz_1;
+      *x9Out = self->secondary[secIdx].x9_2;
+      *szOut = self->secondary[secIdx].sz_2;
       break;
    case 3:
-      *x9Out = self->secondary[secIdx].x9_1;
-      *szOut = self->secondary[secIdx].sz_1;
+      *x9Out = self->secondary[secIdx].x9_3;
+      *szOut = self->secondary[secIdx].sz_3;
       break;
    } 
 }
 
 //output is 512x168 32-bit color RGBA
-void snesRender(SNES *self, ColorRGBA *out) {
+void snesRender(SNES *self, ColorRGBA *out, int flags) {
    int x = 0, y = 0;
    byte layer = 0, obj = 0;
 
@@ -80,10 +80,13 @@ void snesRender(SNES *self, ColorRGBA *out) {
       for (obj = 0; obj < 128 && obj < self->oam.objCount &&  objCount < OBJS_PER_LINE; ++obj) {
          //determine base don obj height the first 32 objs on this sl
          Sprite *spr = self->oam.primary + obj;
-         byte x9 = 0, sz = 0;
+         byte x9 = 0, sz = 0;         
          _getSecondaryOAMData(&self->oam, obj, &x9, &sz);
+         byte pxHeight = objTileCountY[sz] * 8;
 
-         if (spr->y <= y && spr->y + (objTileCountY[sz] * 8) > y) {
+         if (
+            (spr->y <= y && spr->y + pxHeight > y) || //scanline falls on sprite
+            (spr->y >= 256 - pxHeight && y <  (byte)(spr->y + pxHeight))) { //
             slObjs[objCount++] = obj;
          }
       }
@@ -91,28 +94,34 @@ void snesRender(SNES *self, ColorRGBA *out) {
       //time, from the range build a list of at most 34 8x8 tiles
       //iterate reverse order
       for (obj = 31; obj < OBJS_PER_LINE; --obj) {
-         Sprite *spr = self->oam.primary + slObjs[obj];
+         Sprite *spr = self->oam.primary + slObjs[obj];         
          byte x9 = 0, sz = 0;
          _getSecondaryOAMData(&self->oam, slObjs[obj], &x9, &sz);
+         byte pxHeight = objTileCountY[sz] * 8;
 
          TwosComplement9 _tX = { 0 };
          _tX.twos.value = spr->x;
          _tX.twos.sign = x9;
+         if (_tX.twos.sign) {
+            _tX.twos.unused = ~_tX.twos.unused;
+         }
          int16_t tX = _tX.raw;
 
          if (obj >= objCount) {
             continue;
          }
 
-         if (tX > -(objTileCountY[sz] * 8) && tX < 256) {
+         if (tX > -(objTileCountX[sz] * 8) && tX < 256) {
             byte tileCount = objTileCountX[sz];
-            byte t = 0;
+            byte t = 0;            
 
             byte yTileOffset = 0;
+
+
+            byte bot = spr->y + pxHeight - 1;
             //figure out which vertical tile the scanline is in
-            if (y - spr->y >= 8) {
-               yTileOffset = (y - spr->y) / 8;
-            }
+            yTileOffset = objTileCountY[sz] - 1 - ((bot - y) / 8);
+
             //now if its flipped we need to take the opposite
             if (spr->flipY) {
                yTileOffset = objTileCountY[sz] - 1 - yTileOffset;
@@ -135,7 +144,7 @@ void snesRender(SNES *self, ColorRGBA *out) {
                tile.palette = spr->palette;
                tile.priority = spr->priority;
                tile.x = tX + (t*8);
-               tile.y = y - spr->y - (yTileOffset * 8); // this is offset correctly to that character
+               tile.y = 8 - ((bot - y) - ((bot - y) / 8) * 8) - 1;
                               
                slTiles[objTileCount++] = tile;
             }
@@ -152,6 +161,9 @@ void snesRender(SNES *self, ColorRGBA *out) {
             if (x >= t->x && x < t->x + 8) {
                byte objX = x - t->x;
                byte objY = t->y;
+
+               if (t->flipX) { objX = 7 - objX; }
+               if (t->flipY) { objY = 7 - objY; }
 
                byte palIndex = 0;
 
@@ -178,8 +190,10 @@ void snesRender(SNES *self, ColorRGBA *out) {
             *(outc + 1) = color24;
          }
          else {
-            *outc = (ColorRGBA) {0, 0, 0, 255};
-            *(outc + 1) = (ColorRGBA) { 0, 0, 0, 255 };
+            ColorRGBA out = flags&SNES_RENDER_DEBUG_WHITE ? (ColorRGBA) {255, 255, 255, 255} : (ColorRGBA) {0, 0, 0, 255};
+
+            *outc = out;
+            *(outc + 1) = out;
          }
       }
    }
