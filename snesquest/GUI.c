@@ -271,6 +271,7 @@ static void _processImage(Texture *tex, SNESColor *out) {
          ColorRGBA c = pixels[y*sz.x + x];
          if (c.a == 255) {
             SNESColor bit15 = {c.r >> 3, c.g >> 3, c.b >> 3};
+
             boolean found = false;
             vecForEach(ColorEntry, entry, entries, {
                if (entry->bit15.r == bit15.r && 
@@ -292,8 +293,8 @@ static void _processImage(Texture *tex, SNESColor *out) {
       }
    }
 
-   for (x = 0; x < 16; ++x) {
-      out[x] = vecAt(ColorEntry)(entries, x)->bit15;
+   for (x = 0; x < 15; ++x) {
+      out[x+1] = vecAt(ColorEntry)(entries, x)->bit15;
    }
 
    vecDestroy(ColorEntry)(entries);
@@ -489,7 +490,6 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
          nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
          nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
 
-
          nk_layout_row_push(ctx, palRectWidth * 16);
 
          enum nk_widget_layout_states state;
@@ -498,11 +498,20 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
          state = nk_widget(&bounds, ctx);
          if (state && state != NK_WIDGET_ROM) {
             int x = 0;
-            for (x = 0; x < 16; ++x) {
 
+            struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
+            pBounds.h /= 2;
+            pBounds.w /= 2;
+            ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
+            nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
+            pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
+            pBounds.x -= palRectWidth / 2; pBounds.y += palRowHeight / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
+            pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
+
+
+            for (x = 1; x < 16; ++x) {
                struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
                pBounds.x += x * palRectWidth;
-
                ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
                nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
 
@@ -586,15 +595,13 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
                ColorRGBA c = pixels[(y + tileY*8)*sz.x + (x + tileX*8)];
                if (c.a == 255) {
                   SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+
                   byte2 raw = *(byte2*)&bit15;
 
-                  for (i = 0; i < 16; ++i) {
+                  for (i = 1; i < 16; ++i) {
                      byte2 raw2 = *(byte2*)&resPalette[i];
 
                      if (raw == raw2) {
-                        
-                        
-
                         //character += tileY * 16;
                         character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
                         character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
@@ -603,8 +610,6 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
                         break;
                      }
                   }
-
-
                }
             }}}}
          }
@@ -623,7 +628,7 @@ void guiUpdate(GUI *self, AppData *data) {
    struct nk_context *ctx = &self->ctx;
 
    struct nk_rect winRect = nk_rect(1024, 0, 256, 720);
-   static boolean openDemo = false, openImporter = true;
+   static boolean openDemo = false, openImporter = false;
 
    if (nk_begin(ctx, "Options", winRect,
      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
