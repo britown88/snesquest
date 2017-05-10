@@ -676,23 +676,62 @@ void guiUpdate(GUI *self, AppData *data) {
       }
 
       if (nk_tree_push(ctx, NK_TREE_TAB, "Profiling", NK_MINIMIZED)) {
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Frame time: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_FULL_FRAME));
-         
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "App update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_UPDATE));
+         Microseconds full = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_FULL_FRAME);
+         Microseconds update = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_UPDATE);
+         Microseconds render = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_RENDER);
+         Microseconds gameUpdate = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GAME_UPDATE);
+         Microseconds gui = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE);
+         Microseconds snes = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER);
+         struct nk_rect wBounds = { 0 };
 
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "App Render: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_RENDER));
-         
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Game Update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GAME_UPDATE));
 
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "GUI Update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE));
-         
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "SNES Render: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER));
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);       
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Frame: %05.2f", full/1000.0f);
+         nk_progress(ctx, &full, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Total frame time (ms)");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Step: %05.2f", update / 1000.0f);
+         nk_progress(ctx, &update, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Frame minus fps-waits");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Game: %05.2f", gameUpdate / 1000.0f);
+         nk_progress(ctx, &gameUpdate, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Game Step");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "SNES: %05.2f", snes / 1000.0f);
+         nk_progress(ctx, &snes, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "SNES Software Render");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Rend: %05.2f", render / 1000.0f);
+         nk_progress(ctx, &render, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Full Render (incl GUI)");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "GUI: %05.2f", gui / 1000.0f);
+         nk_progress(ctx, &gui, 30000, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Time spent in Nuklear");
+         }
 
          nk_tree_pop(ctx);
       }
