@@ -656,7 +656,7 @@ void guiUpdate(GUI *self, AppData *data) {
       if (nk_tree_push(ctx, NK_TREE_TAB, "Testing", NK_MINIMIZED)) {
 
          nk_layout_row_dynamic(ctx, 20, 1);
-         nk_checkbox_label(ctx, "Debug Render", &data->snesRenderWhite);
+         nk_checkbox_label(ctx, "Debug Render", (int*)&data->snesRenderWhite);
 
          nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
          nk_layout_row_push(ctx, 0.35f);
@@ -683,12 +683,12 @@ void guiUpdate(GUI *self, AppData *data) {
          Microseconds gui = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE);
          Microseconds snes = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER);
          struct nk_rect wBounds = { 0 };
-
+         static nk_size usCap = 33333;
 
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);       
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Frame: %05.2f", full/1000.0f);
-         nk_progress(ctx, &full, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&full, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "Total frame time (ms)");
          }
@@ -696,7 +696,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Step: %05.2f", update / 1000.0f);
-         nk_progress(ctx, &update, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&update, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "Frame minus fps-waits");
          }
@@ -704,7 +704,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Game: %05.2f", gameUpdate / 1000.0f);
-         nk_progress(ctx, &gameUpdate, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&gameUpdate, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "Game Step");
          }
@@ -712,7 +712,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "SNES: %05.2f", snes / 1000.0f);
-         nk_progress(ctx, &snes, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&snes, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "SNES Software Render");
          }
@@ -720,7 +720,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Rend: %05.2f", render / 1000.0f);
-         nk_progress(ctx, &render, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&render, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "Full Render (incl GUI)");
          }
@@ -728,7 +728,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 15, 2);
          wBounds = nk_widget_bounds(ctx);
          nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "GUI: %05.2f", gui / 1000.0f);
-         nk_progress(ctx, &gui, 30000, nk_false);
+         nk_progress(ctx, (nk_size*)&gui, usCap, nk_false);
          if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
             nk_tooltip(ctx, "Time spent in Nuklear");
          }
