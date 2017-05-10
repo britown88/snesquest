@@ -124,7 +124,7 @@ static void _setupTestSNES(SNES *snes) {
 
    
    for (i = 0; i < 168; ++i) {
-      snes->hdma[i].objSizeAndBase.objSize = 3;
+      snes->hdma[i].objSizeAndBase.objSize = 5;
    }
 
    snes->oam.objCount = 128;
@@ -215,13 +215,17 @@ static void _renderNative(App *self) {
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
 
-   for (y = 0; y < 5; ++y) {
-      for (x = 0; x < 8; ++x) {
-         int idx = y * 8 + x;
+   int xCount = 4;
+   int yCount = 2;
+   int spacing = 64;
+
+   for (y = 0; y < yCount; ++y) {
+      for (x = 0; x < xCount; ++x) {
+         int idx = y * xCount + x;
 
 
 
-         TwosComplement9 testX = { self->data.testX + x*34 };
+         TwosComplement9 testX = { self->data.testX + x*spacing };
          if (testX.raw >= 256) {
             testX.raw -= 512;
          }
@@ -229,20 +233,24 @@ static void _renderNative(App *self) {
          switch (idx % 4) {
          case 0:
             self->snes.oam.secondary[idx / 4].x9_0 = testX.twos.sign;
+            self->snes.oam.secondary[idx / 4].sz_0 = 1;
             break;
          case 1:
             self->snes.oam.secondary[idx / 4].x9_1 = testX.twos.sign;
+            self->snes.oam.secondary[idx / 4].sz_1 = 1;
             break;
          case 2:
             self->snes.oam.secondary[idx / 4].x9_2 = testX.twos.sign;
+            self->snes.oam.secondary[idx / 4].sz_2 = 1;
             break;
          case 3:
             self->snes.oam.secondary[idx / 4].x9_3 = testX.twos.sign;
+            self->snes.oam.secondary[idx / 4].sz_3 = 1;
             break;
          }
          //self->snes.oam.secondary[idx].x9_0 = testX.twos.sign;
          self->snes.oam.primary[idx].x = testX.twos.value;
-         self->snes.oam.primary[idx].y = self->data.testY + y*34;
+         self->snes.oam.primary[idx].y = self->data.testY + y*spacing;
 
          if (x % 2) {
             self->snes.oam.primary[idx].flipX = 1;
@@ -254,7 +262,7 @@ static void _renderNative(App *self) {
       }
    }
 
-   self->snes.oam.objCount = 5*8;
+   self->snes.oam.objCount = xCount*yCount;
 
 
    

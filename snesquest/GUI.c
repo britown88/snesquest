@@ -260,11 +260,11 @@ static void _processImage(Texture *tex, SNESColor *out) {
    
 
    vec(ColorEntry) *entries = vecCreate(ColorEntry)(NULL);
-   ColorEntry newEntry = { 0 };
-   newEntry.original = (ColorRGBA){0,0,0,255};
-   newEntry.bit15 = (SNESColor) { 0, 0, 0};
-   newEntry.hitCount = 1;
-   vecPushBack(ColorEntry)(entries, &newEntry);
+   //ColorEntry newEntry = { 0 };
+   //newEntry.original = (ColorRGBA){0,0,0,255};
+   //newEntry.bit15 = (SNESColor) { 0, 0, 0};
+   //newEntry.hitCount = 1;
+   //vecPushBack(ColorEntry)(entries, &newEntry);
 
    for (y = 0; y < sz.y; ++y) {
       for (x = 0; x < sz.x; ++x) {
@@ -332,7 +332,7 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
          struct nk_rect bounds;
 
          state = nk_widget(&bounds, ctx);
-         if (state && state != NK_WIDGET_ROM) {
+         if (state) {
             int x = 0;
             for (x = 0; x < 16; ++x) {
                boolean selected = selectedPalette == y * 16 + x;
@@ -471,7 +471,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
             enum nk_widget_layout_states state;
             struct nk_rect bounds;
             state = nk_widget(&bounds, ctx);
-            if (state && state != NK_WIDGET_ROM) {
+            if (state) {
                struct nk_image img = nk_image_id((int)textureGetGLHandle(ogTex));
                nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
             }
@@ -496,7 +496,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
          struct nk_rect bounds;
 
          state = nk_widget(&bounds, ctx);
-         if (state && state != NK_WIDGET_ROM) {
+         if (state) {
             int x = 0;
 
             struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
@@ -549,7 +549,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
          struct nk_rect bounds;
 
          state = nk_widget(&bounds, ctx);
-         if (state && state != NK_WIDGET_ROM) {
+         if (state) {
             int x = 0;
             for (x = 0; x < 16; ++x) {
 
@@ -585,8 +585,8 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
             Char16 *character = NULL;
 
 
-            for (tileY = 0; tileY < 2; ++tileY) {
-            for (tileX = 0; tileX < 2; ++tileX) {
+            for (tileY = 0; tileY < 8; ++tileY) {
+            for (tileX = 0; tileX < 8; ++tileX) {
                character = (Char16 *)&snes->vram + tileY*16 + tileX;
                memset(character, 0, sizeof(Char16));
 
@@ -678,7 +678,7 @@ void guiUpdate(GUI *self, AppData *data) {
       enum nk_widget_layout_states state;
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);
-      if (state && state != NK_WIDGET_ROM) {
+      if (state) {
          static Texture *logo = NULL;
 
          if (!logo) {
@@ -713,7 +713,7 @@ void guiUpdate(GUI *self, AppData *data) {
       enum nk_widget_layout_states state;
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);
-      if (state && state != NK_WIDGET_ROM) {
+      if (state) {
          struct nk_image img = nk_image_id((int)data->snesTexHandle);
          nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
 
