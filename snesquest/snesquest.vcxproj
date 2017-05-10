@@ -69,11 +69,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProjectDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -155,12 +153,7 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="App.c" />
-    <ClCompile Include="DeviceContext.c" />
-    <ClCompile Include="GUI.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="NuklearDemo.c" />
-    <ClCompile Include="Renderer.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\libsnes\libsnes.vcxproj">
@@ -169,16 +162,6 @@ copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     <ProjectReference Include="..\libutils\libutils.vcxproj">
       <Project>{f0c8ed64-bef0-4433-97cf-ad7ed39439ed}</Project>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="App.h" />
-    <ClInclude Include="AppData.h" />
-    <ClInclude Include="Config.h" />
-    <ClInclude Include="DeviceContext.h" />
-    <ClInclude Include="GUI.h" />
-    <ClInclude Include="nuklear.h" />
-    <ClInclude Include="Renderer.h" />
-    <ClInclude Include="stb_image.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

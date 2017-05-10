@@ -19,19 +19,19 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{A7DD5E13-70D5-45FE-9214-AC6FA169156D}</ProjectGuid>
-    <RootNamespace>libsnes</RootNamespace>
+    <ProjectGuid>{528E346A-0351-4417-A76E-D33C9D27FB81}</ProjectGuid>
+    <RootNamespace>snesgen</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -68,12 +68,7 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
-  </PropertyGroup>
+  <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -81,7 +76,6 @@
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>../;</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -100,7 +94,6 @@
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>../;</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -121,28 +114,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="App.h" />
-    <ClInclude Include="AppData.h" />
-    <ClInclude Include="Config.h" />
-    <ClInclude Include="DeviceContext.h" />
-    <ClInclude Include="GUI.h" />
-    <ClInclude Include="nuklear.h" />
-    <ClInclude Include="Renderer.h" />
-    <ClInclude Include="snes.h" />
-    <ClInclude Include="stb_image.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="App.c" />
-    <ClCompile Include="DeviceContext.c" />
-    <ClCompile Include="GUI.c" />
-    <ClCompile Include="NuklearDemo.c" />
-    <ClCompile Include="Renderer.c" />
-    <ClCompile Include="snes.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\libutils\libutils.vcxproj">
-      <Project>{f0c8ed64-bef0-4433-97cf-ad7ed39439ed}</Project>
-    </ProjectReference>
+    <ClCompile Include="main.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,6 +1,6 @@
-#include "App.h"
-#include "Renderer.h"
-#include "DeviceContext.h"
+#include "libsnes/App.h"
+#include "libsnes/Renderer.h"
+#include "libsnes/DeviceContext.h"
 
 #include "libutils/CheckedMemory.h"
 
