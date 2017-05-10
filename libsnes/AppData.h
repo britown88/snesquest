@@ -5,6 +5,8 @@
 
 typedef struct SNES_t SNES;
 typedef struct TextureManager_t TextureManager;
+typedef struct Texture_t Texture;
+typedef struct FrameProfiler_t FrameProfiler;
 
 typedef struct {
    Int2 nativeResolution;
@@ -18,10 +20,11 @@ typedef struct {
 typedef struct AppData_t {
    SNES *snes;
    TextureManager *textureManager;
+   FrameProfiler *frameProfiler;
 
    const Constants constants;
    Variables variables;
-   uint32_t snesTexHandle;
+   Texture *snesTex;
    int testX, testY;
    boolean snesRenderWhite;
 }AppData;

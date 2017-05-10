@@ -125,6 +125,7 @@
     <ClInclude Include="AppData.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="DeviceContext.h" />
+    <ClInclude Include="FrameProfiler.h" />
     <ClInclude Include="GUI.h" />
     <ClInclude Include="nuklear.h" />
     <ClInclude Include="Renderer.h" />

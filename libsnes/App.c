@@ -11,9 +11,12 @@
 
 #include <time.h>
 
+#include "FrameProfiler.h"
+
 
 const static Int2 nativeRes = { 1280, 720 };
 
+static App *g_App;
 
 typedef struct {
    Matrix view;
@@ -94,6 +97,7 @@ struct App_t {
    RenderData rData;
    SNES snes;
    AppData data;
+   FrameProfiler frameProfiler;
 };
 
 static void _setupTestSNES(SNES *snes) {
@@ -128,10 +132,12 @@ static void _setupTestSNES(SNES *snes) {
    }
 
    snes->oam.objCount = 128;
+
 }
 
 App *appCreate(Renderer *renderer, DeviceContext *context) {
    App *out = checkedCalloc(1, sizeof(App));
+   g_App = out;
 
    out->renderer = renderer;
    out->context = context;
@@ -139,8 +145,11 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    _setupRenderData(&out->rData); 
 
    _setupTestSNES(&out->snes);
+   out->data.snes = &out->snes;
+   out->data.snesTex = out->rData.snesTexture;
 
    out->data.textureManager = out->rData.textureManager;
+   out->data.frameProfiler = &out->frameProfiler;
 
    return out;
 }
@@ -152,6 +161,12 @@ void appDestroy(App *self) {
 }
 
 Microseconds appGetTime(App *self) { return deviceContextGetTime(self->context); }
+
+App *appGet() {
+   return g_App;
+}
+
+
 void appQuit(App *self) { self->running = false; }
 int appRand(App *self, int lower, int upper) {
    return (rand() % (upper - lower)) + lower;
@@ -171,21 +186,7 @@ static void _start(App *self) {
    self->running = true;
 }
 
-static Microseconds _getFrameTime() {
-   static Microseconds out;
-   static boolean outSet = false;
-   if (!outSet) {  out = (Microseconds)((1.0 / CONFIG_WINDOW_FRAMERATE) * 1000000); }
-   return out;
-}
 
-static void freeUpCPU(Microseconds timeOffset) {
-   if (timeOffset > 1500) {
-      Sleep((DWORD)((timeOffset - 500) / 1000));
-   }
-   else if (timeOffset > 500) {
-      SwitchToThread();
-   }
-}
 
 static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 size, ColorRGBAf color) {
    Renderer *r = self->renderer;
@@ -208,9 +209,10 @@ static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 si
    r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
 }
 
-static int testCount = 10000, testCount2 = 0;
-static void _renderNative(App *self) {
-   Renderer *r = self->renderer;
+static void _gameStep(App *self) {
+
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_GAME_UPDATE);
+
    int x = 0, y = 0;
 
    const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
@@ -222,8 +224,6 @@ static void _renderNative(App *self) {
    for (y = 0; y < yCount; ++y) {
       for (x = 0; x < xCount; ++x) {
          int idx = y * xCount + x;
-
-
 
          TwosComplement9 testX = { self->data.testX + x*spacing };
          if (testX.raw >= 256) {
@@ -264,68 +264,21 @@ static void _renderNative(App *self) {
 
    self->snes.oam.objCount = xCount*yCount;
 
+   frameProfilerEndEntry(&self->frameProfiler, PROFILE_GAME_UPDATE);
+}
 
-   
-
-   //TwosComplement9 testX2 = { (sbyte2)(((testCount * 2) % (256 + 32)) - 32) };
-   //self->snes.oam.secondary[0].x9_1 = testX2.twos.sign;
-   //self->snes.oam.primary[1].x = testX2.twos.value;
-   //self->snes.oam.primary[1].y = ((testCount * 2) % (168 + 32)) - 16;
-
-   //self->snes.oam.primary[1].x = (testCount * 2) % 256;
-   //self->snes.oam.primary[1].y = (testCount * 2) % 248;
-
-   //for (j = 2; j < 128; ++j) {
-   //   //self->snes.oam.primary[j].x = (testCount +j) % 256;
-   //   //self->snes.oam.primary[j].y = (testCount +j*j) % 248;
-
-
-   //   TwosComplement9 testX = { (sbyte2)(testCount + j % (256 + 32) - 32) };
-
-   //   switch (j % 4) {
-   //   case 0:
-   //      self->snes.oam.secondary[j / 4].x9_0 = testX.twos.sign;
-   //      break;
-   //   case 1:
-   //      self->snes.oam.secondary[j / 4].x9_1 = testX.twos.sign;
-   //      break;
-   //   case 2:
-   //      self->snes.oam.secondary[j / 4].x9_2 = testX.twos.sign;
-   //      break;
-   //   case 3:
-   //      self->snes.oam.secondary[j / 4].x9_3 = testX.twos.sign;
-   //      break;
-   //   }
-   //   
-   //   self->snes.oam.primary[j].x = testX.twos.value;
-   //   self->snes.oam.primary[j].y = ((testCount + j) % (168 + 32)) - 16;
-
-   //}
-
-   
-   ++testCount;
-
-   self->data.snes = &self->snes;
-   self->data.snesTexHandle = textureGetGLHandle(self->rData.snesTexture);
-   
-
-   deviceContextUpdateGUI(self->context, &self->data);
+static void _snesSoftwareRender(App *self) {
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_SNES_RENDER);
+   Renderer *r = self->renderer;
 
    int renderFlags = 0;
-
    if (self->data.snesRenderWhite) {
       renderFlags |= SNES_RENDER_DEBUG_WHITE;
    }
 
    snesRender(&self->snes, self->rData.snesBuffer, renderFlags);
    textureSetPixels(self->rData.snesTexture, (byte*)self->rData.snesBuffer);
-   //_renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, (Float2) { 1024.0f, 672.0f }, White);
-
-
-
-   //test aramis
-   //float aramisSize = 64.0f;
-   //_renderBasicRectModel(self, self->rData.testImage, (Float2) { 0.0f, nativeRes.y - aramisSize }, (Float2) { aramisSize, aramisSize }, White);
+   frameProfilerEndEntry(&self->frameProfiler, PROFILE_SNES_RENDER);
 }
 
 static void _prepareForNativeRender(App *self) {
@@ -386,6 +339,8 @@ static void _renderScreen(App *self) {
 }
 
 static void _renderGUI(App *self) {
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_GUI_UPDATE);
+   
    Renderer *r = self->renderer;
    Matrix model = { 0 };
    matrixIdentity(&model);
@@ -399,17 +354,30 @@ static void _renderGUI(App *self) {
 
    r_setTextureSlot(r, self->rData.uTextureSlot, 0);
    
+   deviceContextUpdateGUI(self->context, &self->data);
    deviceContextRenderGUI(self->context, r);
+
+   frameProfilerEndEntry(&self->frameProfiler, PROFILE_GUI_UPDATE);
 }
 
 static void _renderStep(App *self) {
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_RENDER);
+
+   //all ogl calls after this will be drawn proportional to the native vp
    _prepareForNativeRender(self);
-   _renderNative(self);
+
+   //TODO have this only draw the snesbuffer if not in gui mode
    _renderGUI(self);
+
+   //render native vp fbo to screen
    _renderScreen(self);
+
+   frameProfilerEndEntry(&self->frameProfiler, PROFILE_RENDER);
 }
 
-static void _singleUpdate(App *self) {
+static void _step(App *self) {
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_UPDATE);
+
    deviceContextPollEvents(self->context);
 
    if (deviceContextGetShouldClose(self->context)) {
@@ -418,32 +386,53 @@ static void _singleUpdate(App *self) {
    }
 
    //game step
+   _gameStep(self);
 
-   //game render
+   //draw to snesbuffer
+   _snesSoftwareRender(self);
 
-   //gui shit   
-
+   //hardware render
    _renderStep(self);
+
+   frameProfilerEndEntry(&self->frameProfiler, PROFILE_UPDATE);
 }
 
-static void _step(App *self) {
+static Microseconds _getFrameTime() {
+   static Microseconds out;
+   static boolean outSet = false;
+   if (!outSet) { out = (Microseconds)((1.0 / CONFIG_WINDOW_FRAMERATE) * 1000000); }
+   return out;
+}
+
+static void freeUpCPU(Microseconds timeOffset) {
+   if (timeOffset > 1500) {
+      Sleep((DWORD)((timeOffset - 500) / 1000));
+   }
+   else if (timeOffset > 500) {
+      SwitchToThread();
+   }
+}
+
+static void _stepWithTiming(App *self) {
    Microseconds usPerFrame = _getFrameTime();
    Microseconds time = appGetTime(self);
    Microseconds deltaTime = time - self->lastUpdated;
 
+   frameProfilerSetEntry(&self->frameProfiler, PROFILE_FULL_FRAME, deltaTime);
    if (deltaTime >= usPerFrame) {
       self->lastUpdated = time;
-      _singleUpdate(self);
+      _step(self);
    }
    else {
       freeUpCPU(usPerFrame - deltaTime);
    }
+   ++self->frameProfiler.frame;
 }
 
 void appRun(App *self) {
    _start(self);
    while (self->running) {
-      _step(self);
+      _stepWithTiming(self);
    }
    return;
 }

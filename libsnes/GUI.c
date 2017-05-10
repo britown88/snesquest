@@ -25,6 +25,7 @@
 #include "libsnes/snes.h"
 #include "AppData.h"
 #include "DeviceContext.h"
+#include "FrameProfiler.h"
 
 
 typedef struct {
@@ -674,6 +675,34 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_tree_pop(ctx);
       }
 
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Profiling", NK_MINIMIZED)) {
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Frame time: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_FULL_FRAME));
+         
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "App update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_UPDATE));
+
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "App Render: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_RENDER));
+         
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Game Update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GAME_UPDATE));
+
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "GUI Update: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE));
+         
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "SNES Render: %u", frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER));
+
+         nk_tree_pop(ctx);
+      }
+
+
+
+
+      
+
+
       nk_layout_row_dynamic(ctx, 0, 1);
       enum nk_widget_layout_states state;
       struct nk_rect bounds;
@@ -714,7 +743,8 @@ void guiUpdate(GUI *self, AppData *data) {
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);
       if (state) {
-         struct nk_image img = nk_image_id((int)data->snesTexHandle);
+         uint32_t handle = textureGetGLHandle(data->snesTex);
+         struct nk_image img = nk_image_id(handle);
          nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
 
       }
@@ -723,6 +753,8 @@ void guiUpdate(GUI *self, AppData *data) {
       nk_style_pop_vec2(ctx);
    }
    nk_end(ctx);
+
+
 
    if (openImporter) {
       _buildImporter(ctx, data);
