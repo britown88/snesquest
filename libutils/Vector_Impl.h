@@ -1,7 +1,7 @@
 #include "Preprocessor.h"
 #include "BitTwiddling.h"
 #include "Defs.h"
-#include "shared\CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 #include <string.h>
 
 #define T VectorTPart

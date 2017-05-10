@@ -17,7 +17,7 @@
 #define NK_IMPLEMENTATION
 #include "nuklear.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 
 #define MAX_VERTEX_MEMORY 1024 * 1024
 #define MAX_ELEMENT_MEMORY 512 * 1024

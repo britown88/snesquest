@@ -5,4 +5,4 @@
 
 typedef const char* StringView;
 typedef char* MutableStringView;
-DLL_PUBLIC StringView stringIntern(StringView view);
+StringView stringIntern(StringView view);

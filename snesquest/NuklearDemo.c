@@ -17,7 +17,7 @@
 #define NK_INCLUDE_STANDARD_VARARGS
 #include "nuklear.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 
 
 int nuklear_overview(struct nk_context *ctx)

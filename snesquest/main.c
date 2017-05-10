@@ -2,7 +2,7 @@
 #include "Renderer.h"
 #include "DeviceContext.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 
 int main() {
    DeviceContext *context = deviceContextCreate();

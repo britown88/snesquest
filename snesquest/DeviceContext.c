@@ -2,7 +2,7 @@
 #include "Config.h"
 #include "GUI.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 #include "libutils/IncludeWindows.h"
 #include "libutils/Defs.h"
 

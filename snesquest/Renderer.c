@@ -9,7 +9,7 @@
 #include "Renderer.h"
 #include "DeviceContext.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 #include "libutils/String.h"
 #include "libutils/StandardVectors.h"
 #include "libutils/BitBuffer.h"

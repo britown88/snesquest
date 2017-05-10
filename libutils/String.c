@@ -1,6 +1,6 @@
 #include "String.h"
 #include "StandardVectors.h"
-#include "shared\CheckedMemory.h"
+#include "libutils\CheckedMemory.h"
 #include "Defs.h"
 
 #pragma pack(push, 1)

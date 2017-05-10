@@ -118,6 +118,7 @@
   <ItemGroup>
     <ClInclude Include="BitBuffer.h" />
     <ClInclude Include="BitTwiddling.h" />
+    <ClInclude Include="CheckedMemory.h" />
     <ClInclude Include="Closure_Create.h" />
     <ClInclude Include="Closure_Decl.h" />
     <ClInclude Include="Closure_Functions.h" />
@@ -135,8 +136,10 @@
     <ClInclude Include="Matrix.h" />
     <ClInclude Include="Preprocessor.h" />
     <ClInclude Include="Rect.h" />
+    <ClInclude Include="RTTI.h" />
     <ClInclude Include="StandardVectors.h" />
     <ClInclude Include="String.h" />
+    <ClInclude Include="Strings.h" />
     <ClInclude Include="Time.h" />
     <ClInclude Include="Vector.h" />
     <ClInclude Include="Vector_Create.h" />
@@ -147,6 +150,7 @@
   <ItemGroup>
     <ClCompile Include="BitBuffer.c" />
     <ClCompile Include="BitTwiddling.c" />
+    <ClCompile Include="CheckedMemory.c" />
     <ClCompile Include="Coroutine.c" />
     <ClCompile Include="Defs.c" />
     <ClCompile Include="Dijkstras.c" />
@@ -154,8 +158,10 @@
     <ClCompile Include="IntrusiveHeap.c" />
     <ClCompile Include="Math.c" />
     <ClCompile Include="Matrix.c" />
+    <ClCompile Include="RTTI.c" />
     <ClCompile Include="StandardVectors.c" />
     <ClCompile Include="String.c" />
+    <ClCompile Include="Strings.c" />
     <ClCompile Include="Time.c" />
     <ClCompile Include="Vector.c" />
   </ItemGroup>

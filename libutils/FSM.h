@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shared\RTTI.h"
+#include "libutils\RTTI.h"
 #include "Defs.h"
 
 typedef struct FSM_t FSM;

@@ -5,7 +5,7 @@
 #include "libsnes/snes.h"
 #include "AppData.h"
 
-#include "shared/CheckedMemory.h"
+#include "libutils/CheckedMemory.h"
 #include "libutils/Defs.h"
 #include "libutils/IncludeWindows.h"
 

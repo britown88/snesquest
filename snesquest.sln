@@ -1,15 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "snesquest", "snesquest\snesquest.vcxproj", "{A1D52130-6206-483D-B88B-1B51174810CE}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsnes", "libsnes\libsnes.vcxproj", "{A7DD5E13-70D5-45FE-9214-AC6FA169156D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libutils", "libutils\libutils.vcxproj", "{F0C8ED64-BEF0-4433-97CF-AD7ED39439ED}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "shared", "shared\shared.vcxproj", "{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -43,14 +41,6 @@ Global
 		{F0C8ED64-BEF0-4433-97CF-AD7ED39439ED}.Release|x64.Build.0 = Release|x64
 		{F0C8ED64-BEF0-4433-97CF-AD7ED39439ED}.Release|x86.ActiveCfg = Release|Win32
 		{F0C8ED64-BEF0-4433-97CF-AD7ED39439ED}.Release|x86.Build.0 = Release|Win32
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Debug|x64.ActiveCfg = Debug|x64
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Debug|x64.Build.0 = Debug|x64
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Debug|x86.ActiveCfg = Debug|Win32
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Debug|x86.Build.0 = Debug|Win32
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Release|x64.ActiveCfg = Release|x64
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Release|x64.Build.0 = Release|x64
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Release|x86.ActiveCfg = Release|Win32
-		{2FBCF107-56A5-4DD8-A6A1-9EB82D04CA7E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

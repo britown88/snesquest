@@ -1,5 +1,5 @@
 #include "IntrusiveHeap.h"
-#include "shared\CheckedMemory.h"
+#include "libutils\CheckedMemory.h"
 #include "libutils\Defs.h"
 
 QueueElem dijkstrasRun(Dijkstras *self){

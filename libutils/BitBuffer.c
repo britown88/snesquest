@@ -1,5 +1,5 @@
 #include "BitBuffer.h"
-#include "shared\CheckedMemory.h"
+#include "libutils\CheckedMemory.h"
 #include "BitTwiddling.h"
 #include <malloc.h>
 #include <string.h>

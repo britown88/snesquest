@@ -4,7 +4,7 @@
 #include "libutils/Matrix.h"
 #include "libutils/Defs.h"
 #include "libutils/Rect.h"
-#include "shared/Strings.h"
+#include "libutils/Strings.h"
 #include "libutils/Preprocessor.h"
 
 typedef struct AppData_t AppData;

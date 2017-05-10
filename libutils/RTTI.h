@@ -11,7 +11,7 @@ typedef struct {
    StringView name;
 } Type;
 
-DLL_PUBLIC size_t getUniqueRTTIID();
+size_t getUniqueRTTIID();
 
 #define GetRTTI(Typename) CONCAT(_getRTTI_, Typename)()
 

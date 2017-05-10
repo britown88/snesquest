@@ -1,6 +1,6 @@
 #include "BitTwiddling.h"
 #include "BitBuffer.h"
-#include "shared\CheckedMemory.h"
+#include "libutils\CheckedMemory.h"
 
 #include <string.h>
 #include <stdint.h>
