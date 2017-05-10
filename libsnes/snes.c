@@ -77,12 +77,16 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
       ObjTile slTiles[OBJ_TILES_PER_LINE];//scanline tiles
 
       //range, find the first 32 sprites in the scanline
+      byte secondaryIndex = 0;
       for (obj = 0; obj < 128 && obj < self->oam.objCount &&  objCount < OBJS_PER_LINE; ++obj) {
          //determine base don obj height the first 32 objs on this sl
          Sprite *spr = self->oam.primary + obj;
-         byte x9 = 0, sz = 0;         
-         _getSecondaryOAMData(&self->oam, obj, &x9, &sz);
+
+         byte si2 = obj & 3; //obj%4
+         byte x9 = !!((*(byte*)&self->oam.secondary[secondaryIndex]) & (1 << (si2 * 2)));
+         byte sz = !!((*(byte*)&self->oam.secondary[secondaryIndex]) & (1 << (si2 * 2 + 1)));         
          byte pxHeight = objTileCountY[sz] * 8;
+         if (si2 == 3) { ++secondaryIndex; }
 
          if (
             (spr->y <= y && spr->y + pxHeight > y) || //scanline falls on sprite
@@ -94,9 +98,12 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
       //time, from the range build a list of at most 34 8x8 tiles
       //iterate reverse order
       for (obj = 31; obj < OBJS_PER_LINE; --obj) {
-         Sprite *spr = self->oam.primary + slObjs[obj];         
-         byte x9 = 0, sz = 0;
-         _getSecondaryOAMData(&self->oam, slObjs[obj], &x9, &sz);
+         Sprite *spr = self->oam.primary + slObjs[obj];  
+
+         byte secondaryIndex = slObjs[obj] >> 2;
+         byte si2 = slObjs[obj] & 3; //obj%4
+         byte x9 = !!((*(byte*)&self->oam.secondary[secondaryIndex]) & (1 << (si2 * 2)));
+         byte sz = !!((*(byte*)&self->oam.secondary[secondaryIndex]) & (1 << (si2 * 2 + 1)));
          byte pxHeight = objTileCountY[sz] * 8;
 
          TwosComplement9 _tX = { 0 };
