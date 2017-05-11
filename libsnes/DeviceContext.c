@@ -47,6 +47,8 @@ void deviceContextDestroy(DeviceContext *self) {
 
 int deviceContextCreateWindow(DeviceContext *self, AppData *data) {
 
+   SetProcessDPIAware();
+
    self->winSize = data->window->windowResolution;
 
    SDL_Init(SDL_INIT_VIDEO);
@@ -61,7 +63,7 @@ int deviceContextCreateWindow(DeviceContext *self, AppData *data) {
    flags |= SDL_WINDOW_RESIZABLE;
 
    self->window = SDL_CreateWindow(CONFIG_WINDOW_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-      self->winSize.x, self->winSize.y, SDL_WINDOW_OPENGL);
+      self->winSize.x, self->winSize.y, flags);
 
    if (!self->window) {
       return 1;
@@ -110,13 +112,46 @@ void deviceContextUpdateGUI(DeviceContext *self, AppData *data) {
 void deviceContextCommitRender(DeviceContext *self) {
    SDL_GL_SwapWindow(self->window);
 }
+
+static void _handleWindowEvent(DeviceContext *self, SDL_Event *event) {
+   switch (event->window.event) {
+   case SDL_WINDOWEVENT_SIZE_CHANGED:
+      SDL_GetWindowSize(self->window, &self->winSize.x, &self->winSize.y);
+      SDL_GL_GetDrawableSize(self->window, &self->winDrawableSize.x, &self->winDrawableSize.y);
+      break;
+
+   case SDL_WINDOWEVENT_MAXIMIZED:
+      break;
+
+   case SDL_WINDOWEVENT_MINIMIZED:
+      break;
+
+   case SDL_WINDOWEVENT_RESTORED:
+      break;
+
+   case SDL_WINDOWEVENT_CLOSE:
+      break;
+   }
+}
+
+
 void deviceContextPollEvents(DeviceContext *self) {
    SDL_Event event;
    guiBeginInput(self->gui);
    while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
          self->shouldClose = true;
+         return;
       }
+
+      switch (event.type) {
+      case SDL_WINDOWEVENT:
+         _handleWindowEvent(self, &event);
+         break;
+
+
+      }
+
       guiProcessInputEvent(self->gui, &event);
    }
    guiEndInput(self->gui);

@@ -86,8 +86,8 @@ static void _setupRenderData(App *app) {
 
    self->rectModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
 
-   self->snesTexture = textureCreateCustom(512, 168, RepeatType_Clamp, FilterType_Nearest);
-   self->snesBuffer = checkedCalloc(512 * 168, sizeof(ColorRGBA));
+   self->snesTexture = textureCreateCustom(SNES_SCANLINE_WIDTH, SNES_SCANLINE_COUNT, RepeatType_Clamp, FilterType_Nearest);
+   self->snesBuffer = checkedCalloc(SNES_SCANLINE_WIDTH * SNES_SCANLINE_COUNT, sizeof(ColorRGBA));
 
    self->uModel = stringIntern("uModelMatrix");
    self->uColor = stringIntern("uColorTransform");
@@ -137,7 +137,7 @@ static void _setupTestSNES(SNES *snes) {
    }
 
    
-   for (i = 0; i < 168; ++i) {
+   for (i = 0; i < SNES_SCANLINE_COUNT; ++i) {
       snes->hdma[i].objSizeAndBase.objSize = 5;
    }
 
@@ -379,13 +379,38 @@ static void _renderStep(App *self) {
    frameProfilerStartEntry(&self->frameProfiler, PROFILE_RENDER);
 
    //all ogl calls after this will be drawn proportional to the native vp
-   _prepareForNativeRender(self);
+   //_prepareForNativeRender(self);
 
-   //TODO have this only draw the snesbuffer if not in gui mode
+   ////TODO have this only draw the snesbuffer if not in gui mode
+   //_renderGUI(self);
+
+   ////render native vp fbo to screen
+   //_renderScreen(self);
+
+
+
+   //test render because maybe screw the fbo??
+   Renderer *r = self->renderer;
+
+   Int2 winSize = self->winData.windowResolution;
+   const Recti winVP = { 0, 0, winSize.x, winSize.y };
+
+   r_viewport(r, &winVP);
+   r_clear(r, &DkGray);
+   r_enableAlphaBlending(r, true);
+
+   UBOMain ubo = { 0 };
+   matrixIdentity(&ubo.view);
+   matrixOrtho(&ubo.view, 0.0f, (float)winVP.w, (float)winVP.h, 0.0f, 1.0f, -1.0f);
+   r_setUBOData(r, self->rData.ubo, ubo);
+
+   r_setShader(r, self->rData.baseShader);
+
    _renderGUI(self);
 
-   //render native vp fbo to screen
-   _renderScreen(self);
+   r_finish(r);
+   r_flush(r);
+
 
    frameProfilerEndEntry(&self->frameProfiler, PROFILE_RENDER);
 }

@@ -636,10 +636,14 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
 void guiUpdate(GUI *self, AppData *data) {
    struct nk_context *ctx = &self->ctx;
 
-   struct nk_rect winRect = nk_rect(1024, 0, 256, 720);
-   static boolean openDemo = false, openImporter = false;
+   Int2 windowSize = data->window->windowResolution;
+   Float2 optionsSize = { 256.0f, windowSize.y };
 
-   if (nk_begin(ctx, "Options", winRect,
+   struct nk_rect optRect = nk_rect(windowSize.x - optionsSize.x, 0, optionsSize.x, optionsSize.y);
+   static boolean openDemo = false, openImporter = false;
+   
+
+   if (nk_begin(ctx, "Options", optRect,
      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
    {
       _buildPalette(ctx, data);
@@ -775,15 +779,30 @@ void guiUpdate(GUI *self, AppData *data) {
    }
    nk_end(ctx);
 
-   struct nk_rect viewerRect = nk_rect(0, 0, 1024, 720);
+   struct nk_rect viewerRect = nk_rect(0, 0, windowSize.x - optionsSize.x, windowSize.y);
    if (nk_begin(ctx, "Viewer", viewerRect,
-      NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_SCALABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
+      NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
    {
+      if (!nk_input_is_mouse_down(&ctx->input, NK_BUTTON_LEFT)) {
+         viewerRect = nk_window_get_bounds(ctx);
+
+         //if (viewerRect.x < 0 || viewerRect.y < 0) { 
+         //   viewerRect.w = windowSize.x - optionsSize.x; 
+         //}
+         if (viewerRect.x < 0) { viewerRect.x = 0; }
+         if (viewerRect.y < 0) { viewerRect.y = 0; }
+
+         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
+         nk_window_set_bounds(ctx, viewerRect);
+      }
+
+      
+
       struct nk_rect winBounds = nk_window_get_content_region(ctx);
       nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
 
-
-      nk_layout_row_begin(ctx, NK_DYNAMIC, winBounds.w * (168.0f / 256.0f), 1);
+      float h = (winBounds.w * 9) / 16.0f;
+      nk_layout_row_begin(ctx, NK_DYNAMIC, h, 1);
       nk_layout_row_push(ctx, 1.0f);
 
       enum nk_widget_layout_states state;
@@ -870,13 +889,14 @@ static void _render(GUI *self, Renderer *r) {
 
    const struct nk_draw_command *cmd;
    const nk_draw_index *offset = NULL;
+   Int2 winSize = r_getSize(r);
 
    nk_draw_foreach(cmd, &self->ctx, &self->cmds) {
       if (!cmd->elem_count) continue;
       glBindTexture(GL_TEXTURE_2D, (GLuint)cmd->texture.id);
 
       glScissor((GLint)(cmd->clip_rect.x),
-            (GLint)((720 - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h))),
+            (GLint)((winSize.y - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h))),
             (GLint)(cmd->clip_rect.w),
             (GLint)(cmd->clip_rect.h));
 
