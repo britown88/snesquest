@@ -435,6 +435,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
          if (files) {
             vecDestroy(StringPtr)(files);
             selectedFile = NULL;
+            files = NULL;
          }
          deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
          refreshFiles = false;
@@ -796,7 +797,7 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_window_set_bounds(ctx, viewerRect);
       }
 
-      if (nk_input_is_mouse_click_in_rect(ctx, NK_BUTTON_RIGHT, viewerRect)) {
+      if (nk_window_has_focus(ctx) && nk_input_is_mouse_click_in_rect(ctx, NK_BUTTON_RIGHT, viewerRect)) {
 
          if (viewerRect.w == windowSize.x - optionsSize.x) {
             viewerRect.w /= 2.0;

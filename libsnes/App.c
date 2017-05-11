@@ -86,7 +86,7 @@ static void _setupRenderData(App *app) {
 
    self->rectModel = FVF_Pos2_Tex2_Col4_CreateModel(vertices, 6, ModelStreamType_Static);
 
-   self->snesTexture = textureCreateCustom(SNES_SCANLINE_WIDTH, SNES_SCANLINE_COUNT, RepeatType_Clamp, FilterType_Nearest);
+   self->snesTexture = textureCreateCustom(SNES_SCANLINE_WIDTH, SNES_SCANLINE_COUNT, RepeatType_Clamp, FilterType_Linear);
    self->snesBuffer = checkedCalloc(SNES_SCANLINE_WIDTH * SNES_SCANLINE_COUNT, sizeof(ColorRGBA));
 
    self->uModel = stringIntern("uModelMatrix");
