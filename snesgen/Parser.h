@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libutils/String.h"
+#include "libutils/Defs.h"
 
 typedef struct {
    char *pos, *last;

@@ -94,6 +94,7 @@
     <Link>
       <AdditionalDependencies>glew32.lib;SDL2.lib;SDL2main.lib;opengl32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>Debug</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
       <Command>echo Copying DLL dependencies to output...

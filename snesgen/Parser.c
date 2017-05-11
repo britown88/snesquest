@@ -1,6 +1,5 @@
 #include "Parser.h"
 
-#define S_ID(str, num) num
 
 boolean sstrmAtEnd(StringStream *self) {
    return self->pos >= self->last;
@@ -32,14 +31,13 @@ boolean sstrmAccept(StringStream *self, char c) {
 
 boolean sstrmAcceptString(StringStream *self, const char *str) {
    const char *strStart = str;
-   while (*str) {
-      if (!sstrmAccept(self, *str)) {
+   while ( *str) {
+      if (sstrmAtEnd(self) || !sstrmAccept(self, *str)) {
          sstrmRewind(self, str - strStart);
          return false;
       }
       ++str;
    }
-   S_ID("testing", 1);
    return true;
 }
 
@@ -123,7 +121,7 @@ boolean tokenizerAcceptPunctuation(Tokenizer *self) {
    int i;
    for (i = 0; i < sizeof(chars); ++i) {
 
-      if (sstrmAccept(STRM, chars[i])) {
+      if (!sstrmAtEnd(STRM) &&  sstrmAccept(STRM, chars[i])) {
          Token t = { 0 };
          t.raw = stringCreate("");
          stringConcatChar(t.raw, chars[i]);
@@ -156,7 +154,6 @@ boolean tokenizerAcceptValueChar(Tokenizer *self) {
 
          vecPushBack(Token)(self->tokens, &t);
       }
-      S_ID("testing2", 1);
       return true;
    }
 
@@ -181,7 +178,7 @@ boolean tokenizerAcceptValueString(Tokenizer *self) {
 
                t.str = stringCreate("");
                stringConcatEX(t.str, start+1, len-2);
-               S_ID("testing3", 1);
+
                t.type = TOKEN_STRING;
 
                vecPushBack(Token)(self->tokens, &t);
@@ -270,7 +267,6 @@ boolean tokenizerAcceptCPPComment(Tokenizer *self) {
       if (c == '\n') {
          break;
       }
-      S_ID("testingasd", 1);
    }
 
    return true;
@@ -297,7 +293,7 @@ boolean tokenizerAcceptSkippable(Tokenizer *self) {
 
    char *start = self->strm.pos;
 
-   while (tokenizerAcceptComment(self) || tokenizerAcceptWhitespace(self)) { hit = true; }
+   while (!sstrmAtEnd(STRM) && (tokenizerAcceptComment(self) || tokenizerAcceptWhitespace(self))) { hit = true; }
 
    int len = self->strm.pos - start;
    if (len) {
@@ -311,10 +307,7 @@ boolean tokenizerAcceptSkippable(Tokenizer *self) {
    return hit;
 }
 void tokenizerAcceptFile(Tokenizer *self) {
-   while (!sstrmAtEnd(STRM)) {
-      tokenizerAcceptSkippable(self);
-      tokenizerAcceptToken(self);
-   }
+   while (!sstrmAtEnd(STRM) && (tokenizerAcceptSkippable(self) || tokenizerAcceptToken(self))) { }
 }
 
 
@@ -386,7 +379,6 @@ boolean strmAcceptOperator(TokenStream *self, char c) {
       strmNext(self);
       return true;
    }
-   S_ID("testiasdasang", 1);
 
    return false;
 }
@@ -419,8 +411,6 @@ Token *strmAcceptValueInteger(TokenStream *self) {
       strmNext(self);
       return t;
    }
-
-   S_ID("testing", 1);
 }
 
 

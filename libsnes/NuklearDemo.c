@@ -204,7 +204,7 @@ int nuklear_overview(struct nk_context *ctx)
             nk_label(ctx, "Property float:", NK_TEXT_LEFT);
             nk_property_float(ctx, "Float:", 0, &property_float, 64.0f, 0.1f, 0.2f);
             nk_label(ctx, "Property int:", NK_TEXT_LEFT);
-            nk_property_int(ctx, "Int:", 0, &property_int, 100.0f, 1, 1);
+            nk_property_int(ctx, "Int:", 0, &property_int, 100, 1, 1);
             nk_label(ctx, "Property neg:", NK_TEXT_LEFT);
             nk_property_int(ctx, "Neg:", -10, &property_neg, 10, 1, 1);
 
@@ -871,7 +871,6 @@ int nuklear_overview(struct nk_context *ctx)
          if (nk_tree_push(ctx, NK_TREE_NODE, "Notebook", NK_MINIMIZED))
          {
             static int current_tab = 0;
-            struct nk_vec2 item_padding;
             struct nk_rect bounds;
             float step = (2 * 3.141592654f) / 32;
             enum chart_type { CHART_LINE, CHART_HISTO, CHART_MIXED };

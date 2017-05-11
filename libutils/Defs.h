@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#define S_ID(str, num) (StringID)num
+typedef uint32_t StringID;
+
 #define SIGN(expr) ((expr==0)?0:((expr>0)?1:-1))
 
 typedef uint8_t byte;

@@ -185,6 +185,10 @@ int deviceContextListFiles(const char *root, int type, vec(StringPtr) **out, con
          (type == DC_FILE_DIR_ONLY && ffd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY) ||
          (type == DC_FILE_FILE_ONLY && !(ffd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY))) {
 
+         if (!strcmp(ffd.cFileName, ".") || !strcmp(ffd.cFileName, "..")) {
+            continue;
+         }
+
          String *fname = stringCreate(root);
          stringConcat(fname, "/");
          stringConcat(fname, ffd.cFileName);
@@ -200,7 +204,7 @@ int deviceContextListFiles(const char *root, int type, vec(StringPtr) **out, con
             }
 
             dotPos = stringFindLastOf(fname, ".");
-            str = c_str(fname) + dotPos + 1;
+            str = (char*)c_str(fname) + dotPos + 1;
 
             if (dotPos < stringNPos &&
                strlen(str) == extLen &&

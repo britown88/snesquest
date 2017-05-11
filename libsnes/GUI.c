@@ -503,7 +503,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
             struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
             pBounds.h /= 2;
             pBounds.w /= 2;
-            ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
+
             nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
             pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
             pBounds.x -= palRectWidth / 2; pBounds.y += palRowHeight / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
@@ -775,7 +775,7 @@ void guiUpdate(GUI *self, AppData *data) {
       nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
 
 
-      nk_layout_row_begin(ctx, NK_DYNAMIC, winBounds.w * (168.0f / 256.0), 1);
+      nk_layout_row_begin(ctx, NK_DYNAMIC, winBounds.w * (168.0f / 256.0f), 1);
       nk_layout_row_push(ctx, 1.0f);
 
       enum nk_widget_layout_states state;

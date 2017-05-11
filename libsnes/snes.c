@@ -13,28 +13,6 @@ ColorRGBA snesColorConverTo24Bit(SNESColor in) {
    };
 }
 
-static void _getSecondaryOAMData(OAM *self, byte idx, byte *x9Out, byte *szOut) {
-   byte secIdx = idx / 4;
-   switch (idx % 4) {
-   case 0: 
-      *x9Out = self->secondary[secIdx].x9_0;
-      *szOut = self->secondary[secIdx].sz_0;
-      break;
-   case 1:
-      *x9Out = self->secondary[secIdx].x9_1;
-      *szOut = self->secondary[secIdx].sz_1;
-      break;
-   case 2:
-      *x9Out = self->secondary[secIdx].x9_2;
-      *szOut = self->secondary[secIdx].sz_2;
-      break;
-   case 3:
-      *x9Out = self->secondary[secIdx].x9_3;
-      *szOut = self->secondary[secIdx].sz_3;
-      break;
-   } 
-}
-
 //output is 512x168 32-bit color RGBA
 void snesRender(SNES *self, ColorRGBA *out, int flags) {
    int x = 0, y = 0;
