@@ -135,9 +135,13 @@ static void _handleWindowEvent(DeviceContext *self, SDL_Event *event) {
 }
 
 
-void deviceContextPollEvents(DeviceContext *self) {
+void deviceContextPollEvents(DeviceContext *self, AppData *data) {
    SDL_Event event;
-   guiBeginInput(self->gui);
+
+   boolean doGUI = data->guiEnabled;
+
+   if (doGUI) { guiBeginInput(self->gui); }
+   
    while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
          self->shouldClose = true;
@@ -148,13 +152,18 @@ void deviceContextPollEvents(DeviceContext *self) {
       case SDL_WINDOWEVENT:
          _handleWindowEvent(self, &event);
          break;
-
+      case SDL_KEYUP:
+         if (event.key.keysym.sym == SDLK_F1) {
+            data->guiEnabled = !data->guiEnabled;
+         }
+         break;
 
       }
 
-      guiProcessInputEvent(self->gui, &event);
+      if (doGUI) { guiProcessInputEvent(self->gui, &event); }
    }
-   guiEndInput(self->gui);
+
+   if (doGUI) { guiEndInput(self->gui); }
 }
 
 Int2 deviceContextGetWindowSize(DeviceContext *self) {

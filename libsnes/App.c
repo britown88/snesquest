@@ -406,7 +406,21 @@ static void _renderStep(App *self) {
 
    r_setShader(r, self->rData.baseShader);
 
-   _renderGUI(self);
+
+   if (self->data.guiEnabled) {
+      _renderGUI(self);
+   }
+   else {
+      Float2 size = { 0 };
+
+      size.x = winSize.x;
+      size.y = (size.x * 9.0f) / 16.0f;
+
+      _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, size, White);
+
+   }
+
+   
 
    r_finish(r);
    r_flush(r);
@@ -416,7 +430,7 @@ static void _renderStep(App *self) {
 }
 
 static void __updateDeviceContext(App *self) {
-   deviceContextPollEvents(self->context);
+   deviceContextPollEvents(self->context, &self->data);
 
    //update the winsize into the appdata view
    self->winData.windowResolution = deviceContextGetWindowSize(self->context);

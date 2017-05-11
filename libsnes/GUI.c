@@ -783,9 +783,9 @@ void guiUpdate(GUI *self, AppData *data) {
    if (nk_begin(ctx, "Viewer", viewerRect,
       NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
    {
-      if (!nk_input_is_mouse_down(&ctx->input, NK_BUTTON_LEFT)) {
-         viewerRect = nk_window_get_bounds(ctx);
+      viewerRect = nk_window_get_bounds(ctx);
 
+      if (!nk_input_is_mouse_down(&ctx->input, NK_BUTTON_LEFT)) {
          //if (viewerRect.x < 0 || viewerRect.y < 0) { 
          //   viewerRect.w = windowSize.x - optionsSize.x; 
          //}
@@ -796,7 +796,20 @@ void guiUpdate(GUI *self, AppData *data) {
          nk_window_set_bounds(ctx, viewerRect);
       }
 
-      
+      if (nk_input_is_mouse_click_in_rect(ctx, NK_BUTTON_RIGHT, viewerRect)) {
+
+         if (viewerRect.w == windowSize.x - optionsSize.x) {
+            viewerRect.w /= 2.0;
+         }
+         else {
+            viewerRect.w = windowSize.x - optionsSize.x;            
+         }
+
+         viewerRect.x = 0;
+         viewerRect.y = 0;
+         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
+         nk_window_set_bounds(ctx, viewerRect);
+      }
 
       struct nk_rect winBounds = nk_window_get_content_region(ctx);
       nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));

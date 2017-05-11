@@ -15,7 +15,7 @@ void deviceContextDestroy(DeviceContext *self);
 int deviceContextCreateWindow(DeviceContext *self, AppData *data);
 void deviceContextPrepareForRendering(DeviceContext *self);
 void deviceContextCommitRender(DeviceContext *self);
-void deviceContextPollEvents(DeviceContext *self);
+void deviceContextPollEvents(DeviceContext *self, AppData *data);
 
 void deviceContextRenderGUI(DeviceContext *self, Renderer *r);
 void deviceContextUpdateGUI(DeviceContext *self, AppData *data);

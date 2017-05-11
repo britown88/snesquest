@@ -31,4 +31,5 @@ typedef struct AppData_t {
    Texture *snesTex;
    int testX, testY;
    boolean snesRenderWhite;
+   boolean guiEnabled;
 }AppData;
