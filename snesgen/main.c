@@ -47,7 +47,20 @@ static void _processFileSTRING_ID(SIDProcessing *sid, const char *fname, const c
       int rw = 0;
 
       // validates "S_ID("literal", 0)" and sets rw to a rewind count for if it fails
-      if (strmAcceptIdentifierRaw(strm, "S_ID")) {++rw;
+      char *funcName = "";
+      boolean hit = false;
+      if (strmAcceptIdentifierRaw(strm, "S_ID")) {
+         funcName = "S_ID";
+         hit = true;
+      }
+      else if (strmAcceptIdentifierRaw(strm, "S_HASH")) {
+         funcName = "S_HASH";
+         hit = true;
+      }
+
+         
+      if(hit){
+         ++rw;
          while (strmAcceptSkippable(strm)) { ++rw; }
          if (strmAcceptOperator(strm, '(')) { ++rw;
             while (strmAcceptSkippable(strm)) { ++rw; }
@@ -65,18 +78,18 @@ static void _processFileSTRING_ID(SIDProcessing *sid, const char *fname, const c
                      if (found) {
                         if (!stringEqual(strToken->str, found->val)) {
                            //hash collision found
-                           sprintf(buff, "S_ID(\"%s\", HASH_COLLISION_WITH(\"%s\"))", c_str(strToken->str), c_str(found->val));
+                           sprintf(buff, "%s(\"%s\", HASH_COLLISION_WITH(\"%s\"))", funcName, c_str(strToken->str), c_str(found->val));
                            printf("HASH COLLISION FOUND: %s\n", c_str(strToken->str));
                         }
                         else {
-                           sprintf(buff, "S_ID(\"%s\", %u)", c_str(strToken->str), found->key);
+                           sprintf(buff, "%s(\"%s\", %u)", funcName, c_str(strToken->str), found->key);
                         }
                      }
                      else {
                         //add new item
                         newEntry.val = stringCopy(strToken->str);
                         htInsert(SIDEntry)(sid->entries, &newEntry);
-                        sprintf(buff, "S_ID(\"%s\", %u)", c_str(strToken->str), newEntry.key);
+                        sprintf(buff, "%s(\"%s\", %u)", funcName, c_str(strToken->str), newEntry.key);
                      }
                      
                      stringConcat(out, buff);
@@ -134,7 +147,7 @@ int main(int argc, char *argv[]) {
       return;
    }
 
-   _runSID(argv[1]);
+   //_runSID(argv[1]);
 
    printMemoryLeaks();
 }

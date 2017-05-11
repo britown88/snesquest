@@ -2,8 +2,15 @@
 
 #include <stdint.h>
 
-#define S_ID(str, num) (StringID)num
+#define S_ID(STR, ID) (StringID)ID
 typedef uint32_t StringID;
+
+typedef struct {
+   StringID id;
+   const char *str;
+}HashedString;
+
+#define S_HASH(STR, ID) (HashedString){.id = ID, .str = STR}
 
 #define SIGN(expr) ((expr==0)?0:((expr>0)?1:-1))
 

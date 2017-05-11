@@ -452,6 +452,7 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
                      .path = stringIntern(c_str(selectedFile))
                   };
 
+
                   ogTex = textureManagerGetTexture(data->textureManager, request);
                                     
                   _processImage(ogTex, ogPalette);

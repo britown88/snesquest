@@ -16,5 +16,9 @@ int main() {
    appDestroy(app);
 
    printMemoryLeaks();
+
+   HashedString test = S_HASH("hmm", 1046785858);
+   StringID id = S_ID("hmm", 1046785858);
+
    return 0;
 }
