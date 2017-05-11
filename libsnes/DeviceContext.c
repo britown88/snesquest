@@ -12,14 +12,14 @@
 #include <strsafe.h>
 
 #include "AppData.h"
-
+#include "App.h"
 
 struct DeviceContext_t {
    SDL_Window *window;
    SDL_GLContext sdlContext;
 
    LARGE_INTEGER clock_freq, clock_start;
-   Int2 size;
+   Int2 winSize, winDrawableSize;
    boolean shouldClose;
    GUI *gui;
 };
@@ -45,18 +45,23 @@ void deviceContextDestroy(DeviceContext *self) {
    checkedFree(self);
 }
 
-int deviceContextCreateWindow(DeviceContext *self) {
-   self->size = (Int2) { CONFIG_WINDOW_X, CONFIG_WINDOW_Y };
+int deviceContextCreateWindow(DeviceContext *self, AppData *data) {
+
+   self->winSize = data->window->windowResolution;
 
    SDL_Init(SDL_INIT_VIDEO);
 
-   uint32_t flags = SDL_WINDOW_OPENGL;
-   if (CONFIG_WINDOW_FULLSCREEN) {
+   uint32_t flags = 0;
+   if (data->window->fullScreen) {
       flags |= SDL_WINDOW_FULLSCREEN;
    }
 
+   flags |= SDL_WINDOW_OPENGL;
+   flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+   flags |= SDL_WINDOW_RESIZABLE;
+
    self->window = SDL_CreateWindow(CONFIG_WINDOW_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-      self->size.x, self->size.y, SDL_WINDOW_OPENGL);
+      self->winSize.x, self->winSize.y, SDL_WINDOW_OPENGL);
 
    if (!self->window) {
       return 1;
@@ -76,7 +81,10 @@ int deviceContextCreateWindow(DeviceContext *self) {
 
    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-   SDL_GL_SetSwapInterval(CONFIG_WINDOW_VSYNC ? 1 : 0);
+   SDL_GL_SetSwapInterval(data->window->vsync ? 1 : 0);
+
+   SDL_GetWindowSize(self->window, &self->winSize.x, &self->winSize.y);
+   SDL_GL_GetDrawableSize(self->window, &self->winDrawableSize.x, &self->winDrawableSize.y);
 
    timeBeginPeriod(1);
    QueryPerformanceFrequency(&self->clock_freq);
@@ -115,8 +123,12 @@ void deviceContextPollEvents(DeviceContext *self) {
 }
 
 Int2 deviceContextGetWindowSize(DeviceContext *self) {
-   return self->size;
+   return self->winSize;
 }
+Int2 deviceContextGetDrawableSize(DeviceContext *self) {
+   return self->winDrawableSize;
+}
+
 Microseconds deviceContextGetTime(DeviceContext *self) {
    LARGE_INTEGER end, elapsed;
    QueryPerformanceCounter(&end);

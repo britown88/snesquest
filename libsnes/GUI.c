@@ -411,7 +411,14 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
 }
 
 static void _buildImporter(struct nk_context *ctx, AppData *data) {
-   struct nk_rect winRect = nk_rect((1280-825)/2, (720 - 470) / 2, 825, 470);
+
+   Int2 winSize = data->window->nativeResolution;
+   Int2 dlgSize = { 825, 470 };
+
+   struct nk_rect winRect = nk_rect(
+      (winSize.x - dlgSize.x) / 2.0f, 
+      (winSize.y - dlgSize.y) / 2.0f, 
+      (float)dlgSize.x, (float)dlgSize.y);
    static boolean refreshFiles = true;
    static String *selectedFile = NULL;
    static Texture *ogTex = NULL;

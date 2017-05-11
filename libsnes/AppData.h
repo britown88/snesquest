@@ -9,9 +9,12 @@ typedef struct Texture_t Texture;
 typedef struct FrameProfiler_t FrameProfiler;
 
 typedef struct {
+   Int2 windowResolution;
    Int2 nativeResolution;
-   Recti nativeResolutionRect;
-}Constants;
+   boolean fullScreen;
+   boolean vsync;
+   float targetFramerate;
+}Window;
 
 typedef struct {
    EMPTY_STRUCT;
@@ -22,7 +25,7 @@ typedef struct AppData_t {
    TextureManager *textureManager;
    FrameProfiler *frameProfiler;
 
-   const Constants constants;
+   const Window *window;
    Variables variables;
    Texture *snesTex;
    int testX, testY;

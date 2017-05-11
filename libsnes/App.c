@@ -13,9 +13,6 @@
 
 #include "FrameProfiler.h"
 
-
-const static Int2 nativeRes = { 1280, 720 };
-
 static App *g_App;
 
 typedef struct {
@@ -39,12 +36,36 @@ typedef struct {
    Texture *logoImage;
 }RenderData;
 
-static void _setupRenderData(RenderData *self) {
+struct App_t {
+   boolean running;
+   Microseconds lastUpdated;
+   Renderer *renderer;
+   DeviceContext *context;
+
+   Window winData;
+   RenderData rData;
+   SNES snes;
+   AppData data;
+   FrameProfiler frameProfiler;
+};
+
+static Window _buildWindowData() {
+   return(Window){
+      .windowResolution = { CONFIG_WINDOW_X , CONFIG_WINDOW_Y },
+      .nativeResolution = { CONFIG_NATIVE_X , CONFIG_NATIVE_Y },
+      .fullScreen = CONFIG_WINDOW_FULLSCREEN,
+      .vsync = CONFIG_WINDOW_VSYNC,
+      .targetFramerate = CONFIG_WINDOW_FRAMERATE
+   };
+}
+
+static void _setupRenderData(App *app) {
+   RenderData *self = &app->rData;
    self->textureManager = textureManagerCreate(NULL);
    self->baseShader = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture|ShaderParams_Color);
    self->ubo = uboCreate(sizeof(UBOMain));
 
-   self->nativeFBO = fboCreate(nativeRes, RepeatType_Clamp, FilterType_Nearest);
+   self->nativeFBO = fboCreate(app->winData.nativeResolution, RepeatType_Clamp, FilterType_Nearest);
 
    TextureRequest request = {
       .repeatType = RepeatType_Clamp,
@@ -87,18 +108,7 @@ static void _renderDataDestroy(RenderData *self) {
    textureManagerDestroy(self->textureManager);
 }
 
-struct App_t {
-   boolean running;
-   Microseconds lastUpdated;
-   Renderer *renderer;
-   DeviceContext *context;   
 
-
-   RenderData rData;
-   SNES snes;
-   AppData data;
-   FrameProfiler frameProfiler;
-};
 
 static void _setupTestSNES(SNES *snes) {
    int i = 0;
@@ -142,7 +152,9 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    out->renderer = renderer;
    out->context = context;
 
-   _setupRenderData(&out->rData); 
+   out->winData = _buildWindowData();
+   _setupRenderData(out); 
+
 
    _setupTestSNES(&out->snes);
    out->data.snes = &out->snes;
@@ -150,6 +162,8 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
 
    out->data.textureManager = out->rData.textureManager;
    out->data.frameProfiler = &out->frameProfiler;
+
+   (Window*)out->data.window = &out->winData;
 
    return out;
 }
@@ -160,6 +174,7 @@ void appDestroy(App *self) {
    checkedFree(self);
 }
 
+AppData *appGetData(App *self) { return &self->data; }
 Microseconds appGetTime(App *self) { return deviceContextGetTime(self->context); }
 
 App *appGet() {
@@ -173,7 +188,7 @@ int appRand(App *self, int lower, int upper) {
 }
 
 static void _start(App *self) {
-   if(deviceContextCreateWindow(self->context)) {
+   if(deviceContextCreateWindow(self->context, &self->data)) {
       return;
    }
 
@@ -215,7 +230,8 @@ static void _gameStep(App *self) {
 
    int x = 0, y = 0;
 
-   const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
+   Int2 n = self->winData.nativeResolution;
+   const Recti nativeViewport = { 0, 0, n.x, n.y };
 
    int xCount = 4;
    int yCount = 2;
@@ -284,7 +300,8 @@ static void _snesSoftwareRender(App *self) {
 static void _prepareForNativeRender(App *self) {
    Renderer *r = self->renderer;
 
-   const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
+   Int2 n = self->winData.nativeResolution;
+   const Recti nativeViewport = { 0, 0, n.x, n.y };
 
    r_bindFBOToWrite(r, self->rData.nativeFBO);
    r_viewport(r, &nativeViewport);
@@ -293,7 +310,7 @@ static void _prepareForNativeRender(App *self) {
 
    UBOMain ubo = { 0 };
    matrixIdentity(&ubo.view);
-   matrixOrtho(&ubo.view, 0.0f, (float)nativeViewport.right, (float)nativeViewport.bottom, 0.0f, 1.0f, -1.0f);
+   matrixOrtho(&ubo.view, 0.0f, (float)nativeViewport.w, (float)nativeViewport.h, 0.0f, 1.0f, -1.0f);
    r_setUBOData(r, self->rData.ubo, ubo);
 
    r_setShader(r, self->rData.baseShader);
@@ -302,7 +319,8 @@ static void _prepareForNativeRender(App *self) {
 static void _renderScreen(App *self) {
    Renderer *r = self->renderer;
 
-   const Recti nativeViewport = { 0, 0, nativeRes.x, nativeRes.y };
+   Int2 n = self->winData.nativeResolution;
+   const Recti nativeViewport = { 0, 0, n.x, n.y };
    Int2 winSize = r_getSize(r);
 
    r_enableAlphaBlending(r, false);

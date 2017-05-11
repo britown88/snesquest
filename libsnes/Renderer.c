@@ -774,17 +774,17 @@ void r_viewport(Renderer *self, const Recti *r) {
       winHeight = deviceContextGetWindowSize(self->context).y;
    }
 
-   int width = r->right - r->left;
-   int height = r->bottom - r->top;
+   int width = r->w;
+   int height = r->h;
 
    Recti bounds = {
-      r->left,
-      winHeight - r->top - height,
+      r->x,
+      winHeight - r->y - height,
       width,
       height
    };
 
-   glViewport(bounds.left, bounds.top, bounds.right, bounds.bottom);
+   glViewport(bounds.x, bounds.y, bounds.x+bounds.w, bounds.y+bounds.h);
 }
 
 void r_enableDepth(Renderer *self, boolean enabled) {

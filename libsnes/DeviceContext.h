@@ -7,20 +7,21 @@
 
 typedef struct DeviceContext_t DeviceContext;
 typedef struct Renderer_t Renderer;
+typedef struct AppData_t AppData;
 
 DeviceContext *deviceContextCreate();
 void deviceContextDestroy(DeviceContext *self);
 
-int deviceContextCreateWindow(DeviceContext *self);
+int deviceContextCreateWindow(DeviceContext *self, AppData *data);
 void deviceContextPrepareForRendering(DeviceContext *self);
 void deviceContextCommitRender(DeviceContext *self);
 void deviceContextPollEvents(DeviceContext *self);
 
 void deviceContextRenderGUI(DeviceContext *self, Renderer *r);
-typedef struct AppData_t AppData;
 void deviceContextUpdateGUI(DeviceContext *self, AppData *data);
 
 Int2 deviceContextGetWindowSize(DeviceContext *self);
+Int2 deviceContextGetDrawableSize(DeviceContext *self);
 Microseconds deviceContextGetTime(DeviceContext *self);
 boolean deviceContextGetShouldClose(DeviceContext *self);
 
