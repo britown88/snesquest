@@ -10,6 +10,7 @@ typedef struct FrameProfiler_t FrameProfiler;
 
 typedef struct {
    Int2 windowResolution;
+   
    Int2 nativeResolution;
    boolean fullScreen;
    boolean vsync;

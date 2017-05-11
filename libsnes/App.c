@@ -181,7 +181,6 @@ App *appGet() {
    return g_App;
 }
 
-
 void appQuit(App *self) { self->running = false; }
 int appRand(App *self, int lower, int upper) {
    return (rand() % (upper - lower)) + lower;
@@ -200,8 +199,6 @@ static void _start(App *self) {
 
    self->running = true;
 }
-
-
 
 static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 size, ColorRGBAf color) {
    Renderer *r = self->renderer;
@@ -393,15 +390,22 @@ static void _renderStep(App *self) {
    frameProfilerEndEntry(&self->frameProfiler, PROFILE_RENDER);
 }
 
-static void _step(App *self) {
-   frameProfilerStartEntry(&self->frameProfiler, PROFILE_UPDATE);
-
+static void __updateDeviceContext(App *self) {
    deviceContextPollEvents(self->context);
+
+   //update the winsize into the appdata view
+   self->winData.windowResolution = deviceContextGetWindowSize(self->context);
 
    if (deviceContextGetShouldClose(self->context)) {
       self->running = false;
       return;
    }
+}
+
+static void _step(App *self) {
+   frameProfilerStartEntry(&self->frameProfiler, PROFILE_UPDATE);
+   
+   __updateDeviceContext(self);
 
    //game step
    _gameStep(self);
