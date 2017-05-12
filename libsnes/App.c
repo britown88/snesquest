@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include "FrameProfiler.h"
+#include "EncodedAssets.h"
 
 static App *g_App;
 
@@ -62,7 +63,7 @@ static Window _buildWindowData() {
 static void _setupRenderData(App *app) {
    RenderData *self = &app->rData;
    self->textureManager = textureManagerCreate(NULL);
-   self->baseShader = shaderCreate("assets/shaders.glsl", ShaderParams_DiffuseTexture|ShaderParams_Color);
+   self->baseShader = shaderCreateFromBuffer(enc_Shader, ShaderParams_DiffuseTexture|ShaderParams_Color);
    self->ubo = uboCreate(sizeof(UBOMain));
 
    self->nativeFBO = fboCreate(app->winData.nativeResolution, RepeatType_Clamp, FilterType_Nearest);

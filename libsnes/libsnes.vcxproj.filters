@@ -60,6 +60,9 @@
     <ClInclude Include="DBAssets.h">
       <Filter>Header Files\generated</Filter>
     </ClInclude>
+    <ClInclude Include="EncodedAssets.h">
+      <Filter>Header Files\snesgen</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="snes.c">

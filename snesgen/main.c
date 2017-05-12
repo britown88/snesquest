@@ -8,7 +8,8 @@ static void _showHelp() {
    printf(
       "snesgen usage: [tool] [files]\n"
       "   sid [directory]\n"
-      "   dbgen [dbh file] [outName]\n"
+      "   dbgen [dbh file]\n"
+      "   assetgen [header]\n"
       );
 }
 
@@ -33,6 +34,14 @@ int main(int argc, char *argv[]) {
       }
 
       runDBGen(argv[2]);
+   }
+   else if (!strcmp(argv[1], "assetgen")) {
+      if (argc <= 2) {
+         _showHelp();
+         return;
+      }
+
+      runAssetGen(argv[2]);
    }
 
    printMemoryLeaks();

@@ -38,6 +38,7 @@ static size_t _s2uHash(StringToUniform *p) {
 
 struct Shader_t {
    String *filePath;
+   char *shaderBuffer;
    ShaderParams params;
    boolean built;
    GLuint handle;
@@ -51,8 +52,21 @@ Shader *shaderCreate(const char *file, ShaderParams params) {
    out->params = params;
    return out;
 }
+
+Shader *shaderCreateFromBuffer(const char *buffer, ShaderParams params) {
+   Shader *out = checkedCalloc(1, sizeof(Shader));
+   out->shaderBuffer = buffer;
+   out->uniforms = htCreate(StringToUniform)(&_s2uCompare, &_s2uHash, NULL);
+   out->params = params;
+   return out;
+}
+
 void shaderDestroy(Shader *self) {
-   stringDestroy(self->filePath);
+   if (self->filePath) {
+      stringDestroy(self->filePath);
+   }
+
+   
    htDestroy(StringToUniform)(self->uniforms);
    checkedFree(self);
 }
@@ -125,7 +139,14 @@ static unsigned int _shaderLink(unsigned int vertex, unsigned int fragment) {
 }
 static void _shaderBuild(Shader *self) {
    long fSize = 0;
-   byte *file = readFullFile(c_str(self->filePath), &fSize);
+   byte *file = NULL;
+
+   if (self->filePath) {
+      file = readFullFile(c_str(self->filePath), &fSize);
+   }
+   else {
+      file = self->shaderBuffer;
+   }   
 
    if (!file) {
       return;
@@ -178,7 +199,10 @@ static void _shaderBuild(Shader *self) {
       self->built = true;
    }
 
-   checkedFree(file);
+   if (self->filePath) {
+      checkedFree(file);
+   }
+
    vecDestroy(StringPtr)(vertShader);
    vecDestroy(StringPtr)(fragShader);
 }
@@ -241,6 +265,9 @@ static Texture *_textureCreate(const TextureRequest request) {
          return NULL;
       }
    }
+   else if(request.rawBuffer) {
+      stbi_info_from_memory(request.rawBuffer, request.rawSize, &x, &y, &comp);
+   }
    
 
    Texture *out = checkedCalloc(1, sizeof(Texture));
@@ -275,6 +302,7 @@ static void _textureAcquire(Texture *self) {
    if (self->request.path) {
       int comps = 0;
       byte *data = stbi_load(self->request.path, &self->size.x, &self->size.y, &comps, 4);
+
       if (!data) {
          return;
       }
@@ -282,8 +310,28 @@ static void _textureAcquire(Texture *self) {
       int pixelCount = self->size.x * self->size.y;
       self->pixels = checkedCalloc(pixelCount, sizeof(ColorRGBA));
       memcpy(self->pixels, data, pixelCount * sizeof(ColorRGBA));
-      stbi_image_free(data);
+
+      if (self->request.path) {
+         stbi_image_free(data);
+      }
    }
+   else if(self->request.rawBuffer){
+      int comps = 0;
+      byte *data = stbi_load_from_memory(self->request.rawBuffer, self->request.rawSize, &self->size.x, &self->size.y, &comps, 4);
+
+      if (!data) {
+         return;
+      }
+
+      int pixelCount = self->size.x * self->size.y;
+      self->pixels = checkedCalloc(pixelCount, sizeof(ColorRGBA));
+      memcpy(self->pixels, data, pixelCount * sizeof(ColorRGBA));
+
+      if (self->request.path) {
+         stbi_image_free(data);
+      }
+   }
+
 
    glEnable(GL_TEXTURE_2D);
    glGenTextures(1, &self->glHandle);
@@ -327,6 +375,7 @@ typedef Texture *TexturePtr;
 static int _texEntryCompare(TexturePtr *e1, TexturePtr *e2) {
    return (*e1)->request.filterType == (*e2)->request.filterType &&
       (*e1)->request.path == (*e2)->request.path &&
+      (*e1)->request.rawBuffer == (*e2)->request.rawBuffer &&
       (*e1)->request.repeatType == (*e2)->request.repeatType;
 }
 
@@ -335,6 +384,7 @@ static size_t _texEntryHash(TexturePtr *p) {
    h = (h << 5) + (h << 1) + (unsigned int)(*p)->request.repeatType;
    h = (h << 5) + (h << 1) + (unsigned int)(*p)->request.filterType;
    h = (h << 5) + (h << 1) + (unsigned int)hashPtr((void*)(*p)->request.path);
+   h = (h << 5) + (h << 1) + (unsigned int)hashPtr((void*)(*p)->request.rawBuffer);
    return h;
 }
 

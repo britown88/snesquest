@@ -21,6 +21,7 @@ enum {
 typedef byte ShaderParams;
 
 Shader *shaderCreate(const char *file, ShaderParams params);
+Shader *shaderCreateFromBuffer(const char *buffer, ShaderParams params);
 void shaderDestroy(Shader *self);
 
 void shaderSetActive(Shader *self);
@@ -47,6 +48,8 @@ typedef struct {
    RepeatType repeatType;
    FilterType filterType;
    StringView path;
+   char *rawBuffer;
+   unsigned int rawSize;
 } TextureRequest;
 
 

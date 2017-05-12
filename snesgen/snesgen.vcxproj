@@ -126,6 +126,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AssetGen.c" />
     <ClCompile Include="DBGen.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="Parser.c" />

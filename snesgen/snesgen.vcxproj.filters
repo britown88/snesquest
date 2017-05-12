@@ -30,6 +30,9 @@
     <ClCompile Include="DBGen.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AssetGen.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Parser.h">

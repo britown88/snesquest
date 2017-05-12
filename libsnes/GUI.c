@@ -26,6 +26,7 @@
 #include "AppData.h"
 #include "DeviceContext.h"
 #include "FrameProfiler.h"
+#include "EncodedAssets.h"
 
 
 typedef struct {
@@ -766,9 +767,12 @@ void guiUpdate(GUI *self, AppData *data) {
             TextureRequest request = {
                .repeatType = RepeatType_Clamp,
                .filterType = FilterType_Nearest,
-               .path = stringIntern("assets/logo.png")
+               .rawBuffer = enc_LogoTexture,
+               .rawSize = sizeof(enc_LogoTexture)
             };
             logo = textureManagerGetTexture(data->textureManager, request);
+
+            
          }
 
          struct nk_image img = nk_image_id((int)textureGetGLHandle(logo));
