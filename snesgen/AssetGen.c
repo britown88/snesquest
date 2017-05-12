@@ -95,7 +95,7 @@ void runAssetGen(const char *file) {
             stringConcat(out, EncodeIdentifier);
             stringConcat(out, "(\"");
             stringConcat(out, fName);
-            stringConcat(out, "\",\n   ");
+            stringConcat(out, "\",\r\n   ");
 
             int lineCharCount = 0;
             for (i = 0; i < fSize; ++i) {
@@ -108,7 +108,7 @@ void runAssetGen(const char *file) {
                   outTracker = byteOutput;
                   lineCharCount = 0;
                   stringConcat(out, byteOutput);
-                  stringConcat(out, "\n   ");
+                  stringConcat(out, "\r\n   ");
                }
             }
 
