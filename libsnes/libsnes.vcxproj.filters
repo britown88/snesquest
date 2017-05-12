@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\snesgen">
+      <UniqueIdentifier>{f9dc27c8-da6c-4d51-ab72-d6082c691e3d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="snes.h">
@@ -65,5 +68,10 @@
     <ClCompile Include="Renderer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets.dbh">
+      <Filter>Header Files\snesgen</Filter>
+    </None>
   </ItemGroup>
 </Project>

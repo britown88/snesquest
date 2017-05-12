@@ -412,5 +412,3 @@ Token *strmAcceptValueInteger(TokenStream *self) {
       return t;
    }
 }
-
-

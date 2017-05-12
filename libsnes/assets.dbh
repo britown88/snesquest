@@ -1,0 +1,46 @@
+struct Image{
+   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
+   Blob image;
+};
+
+struct Palette{
+   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
+   Blob palette;
+};
+
+struct Sprite{
+   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
+   int width;
+   int height;
+};
+
+struct SpriteFrame{
+   PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
+   SELECT String sprite;
+   String image;
+   int index;
+   int imgX;
+   int imgY;
+   
+};
+
+struct TileSchema{
+   PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
+   SELECT String set;
+   String sprite;
+   bool lit;
+   int radius;
+   int centerLevel;
+   int fadeWidth;
+   bool occlusion;
+};
+
+struct LuaScript{
+   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String module;
+   String script;
+};
+
+struct Map{
+   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
+   Blob map;
+};

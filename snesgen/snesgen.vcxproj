@@ -126,8 +126,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DBGen.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="Parser.c" />
+    <ClCompile Include="SID.c" />
     <ClCompile Include="xxhash.c" />
   </ItemGroup>
   <ItemGroup>
@@ -140,6 +142,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Parser.h" />
+    <ClInclude Include="Tools.h" />
     <ClInclude Include="xxhash.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

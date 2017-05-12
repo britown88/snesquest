@@ -14,6 +14,7 @@ typedef enum {
    TOKEN_FLOAT,
    TOKEN_INTEGER,
    TOKEN_STRING,
+   TOKEN_STRING_LITERAL,
    TOKEN_CHAR,
    TOKEN_SKIPPABLE,
    TOKEN_COUNT
@@ -26,6 +27,7 @@ typedef struct {
       float f;
       int i;
       String *str;
+      const char *strLit;
    };
    String *raw;
 }Token;
@@ -72,4 +74,3 @@ boolean strmAcceptOperator(TokenStream *self, char c);
 Token *strmAcceptValueInteger(TokenStream *self);
 Token *strmAcceptValueStringLiteral(TokenStream *self);
 boolean strmAcceptSkippable(TokenStream *self);
-
