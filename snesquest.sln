@@ -14,6 +14,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libutils", "libutils\libuti
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "snesgen", "snesgen\snesgen.vcxproj", "{528E346A-0351-4417-A76E-D33C9D27FB81}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sqlite", "sqlite\sqlite.vcxproj", "{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -54,6 +56,14 @@ Global
 		{528E346A-0351-4417-A76E-D33C9D27FB81}.Release|x64.Build.0 = Release|x64
 		{528E346A-0351-4417-A76E-D33C9D27FB81}.Release|x86.ActiveCfg = Release|Win32
 		{528E346A-0351-4417-A76E-D33C9D27FB81}.Release|x86.Build.0 = Release|Win32
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Debug|x64.ActiveCfg = Debug|x64
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Debug|x64.Build.0 = Debug|x64
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Debug|x86.ActiveCfg = Debug|Win32
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Debug|x86.Build.0 = Debug|Win32
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Release|x64.ActiveCfg = Release|x64
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Release|x64.Build.0 = Release|x64
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Release|x86.ActiveCfg = Release|Win32
+		{FC187CE6-FCBF-407A-BD83-3EBE28C7DE49}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

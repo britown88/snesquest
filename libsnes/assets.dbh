@@ -1,4 +1,4 @@
-struct Image{
+/*struct Image{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    Blob image;
 };
@@ -28,11 +28,11 @@ struct TileSchema{
    PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
    SELECT String set;
    String sprite;
-   bool lit;
+   boolean lit;
    int radius;
    int centerLevel;
    int fadeWidth;
-   bool occlusion;
+   boolean occlusion;
 };
 
 struct LuaScript{
@@ -43,4 +43,4 @@ struct LuaScript{
 struct Map{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    Blob map;
-};
+};*/

@@ -16,6 +16,12 @@
     <Filter Include="Header Files\snesgen">
       <UniqueIdentifier>{f9dc27c8-da6c-4d51-ab72-d6082c691e3d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\generated">
+      <UniqueIdentifier>{387ce210-456f-4bdc-b404-c3ea0f59a1ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\generated">
+      <UniqueIdentifier>{32ef2d24-d17e-4452-af14-30c55112c0af}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="snes.h">
@@ -48,6 +54,12 @@
     <ClInclude Include="FrameProfiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="assets.h">
+      <Filter>Header Files\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="DB.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="snes.c">
@@ -67,6 +79,12 @@
     </ClCompile>
     <ClCompile Include="Renderer.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DB.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="assets.c">
+      <Filter>Source Files\generated</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
