@@ -295,65 +295,6 @@ static void _snesSoftwareRender(App *self) {
    frameProfilerEndEntry(&self->frameProfiler, PROFILE_SNES_RENDER);
 }
 
-static void _prepareForNativeRender(App *self) {
-   Renderer *r = self->renderer;
-
-   Int2 n = self->winData.nativeResolution;
-   const Recti nativeViewport = { 0, 0, n.x, n.y };
-
-   r_bindFBOToWrite(r, self->rData.nativeFBO);
-   r_viewport(r, &nativeViewport);
-   r_clear(r, &DkGray);
-   r_enableAlphaBlending(r, true);
-
-   UBOMain ubo = { 0 };
-   matrixIdentity(&ubo.view);
-   matrixOrtho(&ubo.view, 0.0f, (float)nativeViewport.w, (float)nativeViewport.h, 0.0f, 1.0f, -1.0f);
-   r_setUBOData(r, self->rData.ubo, ubo);
-
-   r_setShader(r, self->rData.baseShader);
-}
-
-static void _renderScreen(App *self) {
-   Renderer *r = self->renderer;
-
-   Int2 n = self->winData.nativeResolution;
-   const Recti nativeViewport = { 0, 0, n.x, n.y };
-   Int2 winSize = r_getSize(r);
-
-   r_enableAlphaBlending(r, false);
-
-   r_bindFBOToWrite(r, NULL);
-
-   r_viewport(r, &(Recti){ 0, 0, winSize.x, winSize.y });
-   r_clear(r, &Black);
-
-   UBOMain ubo = { 0 };
-   matrixIdentity(&ubo.view);
-   matrixOrtho(&ubo.view, 0.0f, (float)winSize.x, 0.0, (float)winSize.y, 1.0f, -1.0f);
-   r_setUBOData(r, self->rData.ubo, ubo);
-
-   r_setShader(r, self->rData.baseShader);
-
-   Matrix model = { 0 };
-   matrixIdentity(&model);
-   matrixScale(&model, (Float2) { (float)winSize.x, (float)winSize.y });
-   r_setMatrix(r, self->rData.uModel, &model);
-   r_setColor(r, self->rData.uColor, &White);
-
-   Matrix texMatrix = { 0 };
-   matrixIdentity(&texMatrix);
-   r_setMatrix(r, self->rData.uTexture, &texMatrix);
-
-   r_bindFBOToRender(r, self->rData.nativeFBO, 0);
-   r_setTextureSlot(r, self->rData.uTextureSlot, 0);
-
-   r_renderModel(r, self->rData.rectModel, ModelRenderType_Triangles);
-
-   r_finish(r);
-   r_flush(r);
-}
-
 static void _renderGUI(App *self) {
    frameProfilerStartEntry(&self->frameProfiler, PROFILE_GUI_UPDATE);
    
@@ -379,16 +320,6 @@ static void _renderGUI(App *self) {
 static void _renderStep(App *self) {
    frameProfilerStartEntry(&self->frameProfiler, PROFILE_RENDER);
 
-   //all ogl calls after this will be drawn proportional to the native vp
-   //_prepareForNativeRender(self);
-
-   ////TODO have this only draw the snesbuffer if not in gui mode
-   //_renderGUI(self);
-
-   ////render native vp fbo to screen
-   //_renderScreen(self);
-
-
 
    //test render because maybe screw the fbo??
    Renderer *r = self->renderer;
@@ -407,7 +338,6 @@ static void _renderStep(App *self) {
 
    r_setShader(r, self->rData.baseShader);
 
-
    if (self->data.guiEnabled) {
       _renderGUI(self);
    }
@@ -418,10 +348,7 @@ static void _renderStep(App *self) {
       size.y = (size.x * 9.0f) / 16.0f;
 
       _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, size, White);
-
    }
-
-   
 
    r_finish(r);
    r_flush(r);

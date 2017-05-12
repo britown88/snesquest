@@ -30,6 +30,6 @@ typedef struct AppData_t {
    Variables variables;
    Texture *snesTex;
    int testX, testY;
-   boolean snesRenderWhite;
+   int snesRenderWhite;
    boolean guiEnabled;
 }AppData;
