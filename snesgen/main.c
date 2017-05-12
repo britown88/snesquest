@@ -8,7 +8,7 @@ static void _showHelp() {
    printf(
       "snesgen usage: [tool] [files]\n"
       "   sid [directory]\n"
-      "   dbgen [dbh file]\n"
+      "   dbgen [dbh file] [outName]\n"
       );
 }
 

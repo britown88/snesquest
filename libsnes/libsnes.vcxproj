@@ -84,7 +84,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PreBuildEvent>
-      <Command>$(OutDir)snesgen.exe dbgen $(ProjectDir)assets.dbh</Command>
+      <Command>$(OutDir)snesgen.exe dbgen $(ProjectDir)Assets.dbh</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -110,7 +110,7 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PreBuildEvent>
-      <Command>$(OutDir)snesgen.exe dbgen $(ProjectDir)assets.dbh</Command>
+      <Command>$(OutDir)snesgen.exe dbgen $(ProjectDir)Assets.dbh</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -129,7 +129,7 @@
   <ItemGroup>
     <ClInclude Include="App.h" />
     <ClInclude Include="AppData.h" />
-    <ClInclude Include="assets.h" />
+    <ClInclude Include="DBAssets.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="DB.h" />
     <ClInclude Include="DeviceContext.h" />
@@ -142,7 +142,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App.c" />
-    <ClCompile Include="assets.c" />
+    <ClCompile Include="DBAssets.c" />
     <ClCompile Include="DB.c" />
     <ClCompile Include="DeviceContext.c" />
     <ClCompile Include="GUI.c" />
@@ -159,7 +159,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets.dbh" />
+    <None Include="Assets.dbh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

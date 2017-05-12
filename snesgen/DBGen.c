@@ -982,11 +982,10 @@ static void _generateFiles(const char *file, DBGenLexer *lexer) {
    char namebuff[256] = { 0 };
 
    data.input = stringCreate(file);
-
    data.dir = stringGetDirectory(data.input);
 
    data.inputFileOnly = stringGetFilename(data.input);
-   sprintf(namebuff, "%s", c_str(data.inputFileOnly));
+   sprintf(namebuff, "DB%s", c_str(data.inputFileOnly));
    stringSet(data.inputFileOnly, namebuff);
 
    sprintf(namebuff, "%s.h", c_str(data.inputFileOnly));

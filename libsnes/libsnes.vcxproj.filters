@@ -54,11 +54,11 @@
     <ClInclude Include="FrameProfiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="assets.h">
-      <Filter>Header Files\generated</Filter>
-    </ClInclude>
     <ClInclude Include="DB.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DBAssets.h">
+      <Filter>Header Files\generated</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -83,12 +83,12 @@
     <ClCompile Include="DB.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="assets.c">
+    <ClCompile Include="DBAssets.c">
       <Filter>Source Files\generated</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="assets.dbh">
+    <None Include="Assets.dbh">
       <Filter>Header Files\snesgen</Filter>
     </None>
   </ItemGroup>
