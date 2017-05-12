@@ -1,20 +1,20 @@
-/*struct Image{
+table Image{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    Blob image;
 };
 
-struct Palette{
+table Palette{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    Blob palette;
 };
 
-struct Sprite{
+table Sprite{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    int width;
    int height;
 };
 
-struct SpriteFrame{
+table SpriteFrame{
    PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
    SELECT String sprite;
    String image;
@@ -24,7 +24,7 @@ struct SpriteFrame{
    
 };
 
-struct TileSchema{
+table TileSchema{
    PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
    SELECT String set;
    String sprite;
@@ -35,12 +35,14 @@ struct TileSchema{
    boolean occlusion;
 };
 
-struct LuaScript{
+table LuaScript{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String module;
    String script;
 };
 
-struct Map{
+table Map{
    SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
    Blob map;
-};*/
+};
+
+

@@ -133,9 +133,6 @@
     <ClCompile Include="xxhash.c" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\libsnes\libsnes.vcxproj">
-      <Project>{a7dd5e13-70d5-45fe-9214-ac6fa169156d}</Project>
-    </ProjectReference>
     <ProjectReference Include="..\libutils\libutils.vcxproj">
       <Project>{f0c8ed64-bef0-4433-97cf-ad7ed39439ed}</Project>
     </ProjectReference>

@@ -102,8 +102,8 @@ copy $(ProjectDir)lib\SDL2.dll $(TargetDir)SDL2.dll
 copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>echo Running DBGen...
-$(OutDir)snesgen.exe dbgen $(SolutionDir)libsnes\assets.dbh</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -141,8 +141,8 @@ copy $(ProjectDir)lib\SDL2.dll $(TargetDir)SDL2.dll
 copy $(ProjectDir)lib\glew32.dll $(TargetDir)glew32.dll</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>echo Running DBGen...
-$(OutDir)snesgen.exe dbgen $(SolutionDir)libsnes\assets.dbh</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

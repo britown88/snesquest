@@ -172,7 +172,7 @@ DBMember lexerAcceptMember(DBGenLexer *self) {
 }
 DBStruct lexerAcceptStruct(DBGenLexer *self) {
    static DBStruct NullOut = { .name = NULL };
-   static const char *svStruct = "struct";
+   static const char *svStruct = "table";
    DBMember newMember = { 0 };
    DBStruct newStruct = { 0 };
 
@@ -1011,7 +1011,13 @@ static void _generateFiles(const char *file, DBGenLexer *lexer) {
       stringDestroy(dircpy);
    }
 
-   printf("Output: %s; %s\n", c_str(data.outputh), c_str(data.outputc));
+   printf(
+      "* Output is:\n"
+      "*    %s\n"
+      "*    %s\n"
+      ,
+      c_str(data.outputh), 
+      c_str(data.outputc));
 
    data.structs = lexer->structs;
 
@@ -1023,13 +1029,18 @@ static void _generateFiles(const char *file, DBGenLexer *lexer) {
    stringDestroy(data.dir);
    stringDestroy(data.outputh);
    stringDestroy(data.outputc);
+
+   printf("***********************************\n");
 }
 
 
 void runDBGen(const char *file) {
    long fSize = 0;
 
-   printf("%s\n", file);
+   printf(
+      "***********************************\n"
+      "* DBGen: SQLite API Generator\n"
+      "* Processing dbh file: %s\n", file);
 
    byte *buff = readFullFile(file, &fSize);
    Tokenizer *tokens = tokenizerCreate((StringStream) { .pos = buff, .last = buff + fSize });

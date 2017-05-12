@@ -121,13 +121,13 @@ static void _processFileSTRING_ID(SIDProcessing *sid, const char *fname, const c
 
 static void _processDirectorySTRING_ID(SIDProcessing *sid, const char *dir) {
    vec(StringPtr) *dirs = 0, *headers = 0, *sources = 0;
-   deviceContextListFiles(dir, DC_FILE_DIR_ONLY, &dirs, NULL);
-   deviceContextListFiles(dir, DC_FILE_FILE_ONLY, &sources, "c");
-   deviceContextListFiles(dir, DC_FILE_FILE_ONLY, &headers, "h");
+   //deviceContextListFiles(dir, DC_FILE_DIR_ONLY, &dirs, NULL);
+   //deviceContextListFiles(dir, DC_FILE_FILE_ONLY, &sources, "c");
+   //deviceContextListFiles(dir, DC_FILE_FILE_ONLY, &headers, "h");
 
-   vecForEach(StringPtr, str, dirs, { _processDirectorySTRING_ID(sid, c_str(*str)); });
-   vecForEach(StringPtr, str, headers, { _processFileSTRING_ID(sid, c_str(*str), c_str(*str)); });
-   vecForEach(StringPtr, str, sources, { _processFileSTRING_ID(sid, c_str(*str), c_str(*str)); });
+   //vecForEach(StringPtr, str, dirs, { _processDirectorySTRING_ID(sid, c_str(*str)); });
+   //vecForEach(StringPtr, str, headers, { _processFileSTRING_ID(sid, c_str(*str), c_str(*str)); });
+   //vecForEach(StringPtr, str, sources, { _processFileSTRING_ID(sid, c_str(*str), c_str(*str)); });
 
    if (dirs) { vecDestroy(StringPtr)(dirs); }
    if (headers) { vecDestroy(StringPtr)(headers); }
