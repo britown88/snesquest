@@ -28,50 +28,142 @@
 #include "FrameProfiler.h"
 #include "EncodedAssets.h"
 
+static struct nk_color _colorToNKColor(ColorRGBA in) { return nk_rgb(in.r, in.g, in.b); }
+
+typedef struct {
+   ColorRGBA original;
+   SNESColor bit15;
+   int hitCount;
+}ColorEntry;
+
+#define VectorT ColorEntry
+#include "libutils/Vector_Create.h"
+
+static void _processImage(Texture *tex, SNESColor *out) {
+   const ColorRGBA *pixels = textureGetPixels(tex);
+   Int2 sz = textureGetSize(tex);
+   int x, y;
+
+   memset(out, 0, sizeof(SNESColor) * 16);
+
+
+   vec(ColorEntry) *entries = vecCreate(ColorEntry)(NULL);
+   //ColorEntry newEntry = { 0 };
+   //newEntry.original = (ColorRGBA){0,0,0,255};
+   //newEntry.bit15 = (SNESColor) { 0, 0, 0};
+   //newEntry.hitCount = 1;
+   //vecPushBack(ColorEntry)(entries, &newEntry);
+
+   for (y = 0; y < sz.y; ++y) {
+      for (x = 0; x < sz.x; ++x) {
+         ColorRGBA c = pixels[y*sz.x + x];
+         if (c.a == 255) {
+            SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+
+            boolean found = false;
+            vecForEach(ColorEntry, entry, entries, {
+               if (entry->bit15.r == bit15.r &&
+               entry->bit15.g == bit15.g &&
+                  entry->bit15.b == bit15.b) {
+                  found = true;
+                  ++entry->hitCount;
+               }
+            });
+
+            if (!found) {
+               ColorEntry newEntry = { 0 };
+               newEntry.original = c;
+               newEntry.bit15 = bit15;
+               newEntry.hitCount = 1;
+               vecPushBack(ColorEntry)(entries, &newEntry);
+            }
+         }
+      }
+   }
+
+   for (x = 0; x < 15; ++x) {
+      out[x + 1] = vecAt(ColorEntry)(entries, x)->bit15;
+   }
+
+   vecDestroy(ColorEntry)(entries);
+}
+
+typedef struct GUIWindow_t GUIWindow;
+typedef struct GUIWindow_t{
+   String *name;
+   GUI *parent;
+   void(*destroy)(GUIWindow *self); //handle any destruction of extra data
+   void(*update)(GUIWindow *self, AppData *data);
+} GUIWindow;
+
+
+static GUIWindow *guiWindowCreate(GUI *parent, const char *name) {
+   GUIWindow *out = checkedCalloc(1, sizeof(GUIWindow));
+   out->parent = parent;
+   out->name = stringCreate(name);
+   return out;
+}
+
+static void guiWindowDestroy(GUIWindow *self) {
+   if (self->destroy) {
+      self->destroy(self);
+   }
+   stringDestroy(self->name);
+   checkedFree(self);
+}
+
+typedef GUIWindow *GUIWindowPtr;
+#define VectorT GUIWindowPtr
+#include "libutils/Vector_Create.h"
+
+static void _guiWindowPtrDestroy(GUIWindowPtr *self) {  
+   guiWindowDestroy(*self);
+}
+
+/*
+typedef struct{
+   GUIWindow base;
+   int someotherdata;
+}MyWindow;
+*/
 
 typedef struct {
    GLuint fontTexture;
-
    GLuint vbo, vao, ebo;
    VertexAttribute *attrs;
 } OGLData;
-
 typedef FVF_Pos2_Tex2_Col4 GUIVertex;
-
-
-static void _initOGLData(OGLData *self) {
-   glGenBuffers(1, &self->vbo);
-   glGenBuffers(1, &self->ebo);
-   glGenVertexArrays(1, &self->vao);
-
-   self->attrs = FVF_Pos2_Tex2_Col4_GetAttrs();
-}
-
-static void _destroyOGLData(OGLData *self) {
-
-}
 
 struct GUI_t {
    struct nk_context ctx;
    struct nk_font_atlas atlas;
    struct nk_buffer cmds;
    struct nk_draw_null_texture null;
-
    OGLData ogl;
+
+   GUIWindow *viewer, *options, *taskBar;
+   vec(GUIWindowPtr) *dialogs;
+
+   size_t charToolCount;
 };
 
-
-
-
+static void _createWindows(GUI *self);
+static void _destroyWindows(GUI *self);
 GUI *guiCreate() {
    GUI *out = checkedCalloc(1, sizeof(GUI));
+
+   _createWindows(out);
+
    return out;
 }
 void guiDestroy(GUI *self) {
+   _destroyWindows(self);
    nk_font_atlas_clear(&self->atlas);
    nk_free(&self->ctx);
    checkedFree(self);
 }
+
+#pragma region Init/Render
 
 void guiBeginInput(GUI *self) {
    nk_input_begin(&self->ctx);
@@ -227,8 +319,13 @@ static void _fontStashEnd(GUI *self) {
       nk_style_set_font(&self->ctx, &self->atlas.default_font->handle);
    }
 }
+static void _initOGLData(OGLData *self) {
+   glGenBuffers(1, &self->vbo);
+   glGenBuffers(1, &self->ebo);
+   glGenVertexArrays(1, &self->vao);
 
-
+   self->attrs = FVF_Pos2_Tex2_Col4_GetAttrs();
+}
 void guiInit(GUI *self) {
    nk_init_default(&self->ctx, 0);
    struct nk_font_atlas *atlas;
@@ -239,72 +336,207 @@ void guiInit(GUI *self) {
 
    _initOGLData(&self->ogl);
 }
+void guiRender(GUI *self, Renderer *r) {
+   OGLData *ogl = &self->ogl;
+   void *vertices, *elements;
 
-static struct nk_color _colorToNKColor(ColorRGBA in) {
-   return nk_rgb(in.r, in.g, in.b);
+   glEnable(GL_BLEND);
+   glBlendEquation(GL_FUNC_ADD);
+   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+   glDisable(GL_CULL_FACE);
+   glDisable(GL_DEPTH_TEST);
+   glEnable(GL_SCISSOR_TEST);
+   glActiveTexture(GL_TEXTURE0);
+
+   glBindVertexArray(ogl->vao);
+   glBindBuffer(GL_ARRAY_BUFFER, ogl->vbo);
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ogl->ebo);
+
+   glHelperBindVertexAttrributes(ogl->attrs, sizeof(GUIVertex));
+
+   glBufferData(GL_ARRAY_BUFFER, MAX_VERTEX_MEMORY, NULL, GL_STREAM_DRAW);
+   glBufferData(GL_ELEMENT_ARRAY_BUFFER, MAX_ELEMENT_MEMORY, NULL, GL_STREAM_DRAW);
+
+   vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+   elements = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+   {
+      /* fill convert configuration */
+      struct nk_convert_config config;
+      static const struct nk_draw_vertex_layout_element vertex_layout[] = {
+         { NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(GUIVertex, pos2) },
+         { NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(GUIVertex, tex2) },
+         { NK_VERTEX_COLOR, NK_FORMAT_R32G32B32A32_FLOAT, NK_OFFSETOF(GUIVertex, col4) },
+         { NK_VERTEX_LAYOUT_END }
+      };
+      NK_MEMSET(&config, 0, sizeof(config));
+      config.vertex_layout = vertex_layout;
+      config.vertex_size = sizeof(GUIVertex);
+      config.vertex_alignment = NK_ALIGNOF(GUIVertex);
+      config.null = self->null;
+      config.circle_segment_count = 22;
+      config.curve_segment_count = 22;
+      config.arc_segment_count = 22;
+      config.global_alpha = 1.0f;
+      config.shape_AA = NK_ANTI_ALIASING_ON;
+      config.line_AA = NK_ANTI_ALIASING_ON;
+
+      /* setup buffers to load vertices and elements */
+      {struct nk_buffer vbuf, ebuf;
+      nk_buffer_init_fixed(&vbuf, vertices, (nk_size)MAX_VERTEX_MEMORY);
+      nk_buffer_init_fixed(&ebuf, elements, (nk_size)MAX_ELEMENT_MEMORY);
+      nk_convert(&self->ctx, &self->cmds, &vbuf, &ebuf, &config);}
+   }
+
+   glUnmapBuffer(GL_ARRAY_BUFFER);
+   glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+
+   const struct nk_draw_command *cmd;
+   const nk_draw_index *offset = NULL;
+   Int2 winSize = r_getSize(r);
+
+   nk_draw_foreach(cmd, &self->ctx, &self->cmds) {
+      if (!cmd->elem_count) continue;
+      glBindTexture(GL_TEXTURE_2D, (GLuint)cmd->texture.id);
+
+      glScissor((GLint)(cmd->clip_rect.x),
+         (GLint)((winSize.y - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h))),
+         (GLint)(cmd->clip_rect.w),
+         (GLint)(cmd->clip_rect.h));
+
+      glDrawElements(GL_TRIANGLES, (GLsizei)cmd->elem_count, GL_UNSIGNED_SHORT, offset);
+      offset += cmd->elem_count;
+   }
+   nk_clear(&self->ctx);
+
+   glBindBuffer(GL_ARRAY_BUFFER, 0);
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+   glBindVertexArray(0);
+
+   glDisable(GL_BLEND);
+   glDisable(GL_SCISSOR_TEST);
 }
+
+#pragma endregion
+
+static const float OptionsWidth = 256.0f;
+static const float TaskBarHeight = 40.0f;
+
+static void _viewerUpdate(GUIWindow *self, AppData *data);
+static void _optionsUpdate(GUIWindow *self, AppData *data);
+static void _taskBarUpdate(GUIWindow *self, AppData *data);
 
 typedef struct {
-   ColorRGBA original;
-   SNESColor bit15;
-   int hitCount;
-}ColorEntry;
+   GUIWindow base;
+   int someOtherData;
+}CharTool;
+static void _charToolUpdate(GUIWindow *self, AppData *data);
+static void _charToolDestroy(GUIWindow *self);
 
-#define VectorT ColorEntry
-#include "libutils/Vector_Create.h"
+static GUIWindow *_charToolCreate(GUI *gui) {
+   CharTool *out = checkedCalloc(1, sizeof(CharTool));
+   GUIWindow *outwin = (GUIWindow*)out;
 
-static void _processImage(Texture *tex, SNESColor *out) {
-   const ColorRGBA *pixels = textureGetPixels(tex);
-   Int2 sz = textureGetSize(tex);
-   int x, y;
+   outwin->parent = gui;
+   outwin->name = stringCreate("Character Importer");
 
-   memset(out, 0, sizeof(SNESColor) * 16);
-   
+   char buff[8] = { 0 };
+   sprintf(buff, " {%i}", gui->charToolCount++);
+   stringConcat(outwin->name, buff);
 
-   vec(ColorEntry) *entries = vecCreate(ColorEntry)(NULL);
-   //ColorEntry newEntry = { 0 };
-   //newEntry.original = (ColorRGBA){0,0,0,255};
-   //newEntry.bit15 = (SNESColor) { 0, 0, 0};
-   //newEntry.hitCount = 1;
-   //vecPushBack(ColorEntry)(entries, &newEntry);
+   outwin->destroy = &_charToolDestroy;
+   outwin->update = &_charToolUpdate;
 
-   for (y = 0; y < sz.y; ++y) {
-      for (x = 0; x < sz.x; ++x) {
-         ColorRGBA c = pixels[y*sz.x + x];
-         if (c.a == 255) {
-            SNESColor bit15 = {c.r >> 3, c.g >> 3, c.b >> 3};
+   return outwin;
+}
+void _charToolDestroy(GUIWindow *self) {
 
-            boolean found = false;
-            vecForEach(ColorEntry, entry, entries, {
-               if (entry->bit15.r == bit15.r && 
-                  entry->bit15.g == bit15.g && 
-                  entry->bit15.b == bit15.b) {
-                  found = true;
-                  ++entry->hitCount;
-               }
-            });
+}
 
-            if (!found) {
-               ColorEntry newEntry = { 0 };
-               newEntry.original = c;
-               newEntry.bit15 = bit15;
-               newEntry.hitCount = 1;
-               vecPushBack(ColorEntry)(entries, &newEntry);
-            }
-         }
-      }
-   }
+void _createWindows(GUI *self) {
+   self->viewer = guiWindowCreate(self, "Viewer");
+   self->viewer->update = &_viewerUpdate;
 
-   for (x = 0; x < 15; ++x) {
-      out[x+1] = vecAt(ColorEntry)(entries, x)->bit15;
-   }
+   self->options = guiWindowCreate(self, "Options");
+   self->options->update = &_optionsUpdate;
 
-   vecDestroy(ColorEntry)(entries);
+   self->taskBar = guiWindowCreate(self, "Taskbar");
+   self->taskBar->update = &_taskBarUpdate;
+
+   self->dialogs = vecCreate(GUIWindowPtr)(&_guiWindowPtrDestroy);
+}
+
+void _destroyWindows(GUI *self){
+   guiWindowDestroy(self->viewer);
+   guiWindowDestroy(self->options);
+   guiWindowDestroy(self->taskBar);
+   vecDestroy(GUIWindowPtr)(self->dialogs);
 }
 
 
+void _viewerUpdate(GUIWindow *self, AppData *data) {
+   struct nk_context *ctx = &self->parent->ctx;
+   Int2 windowSize = data->window->windowResolution;
+   Float2 optionsSize = { OptionsWidth, windowSize.y };
 
-static void _buildPalette(struct nk_context *ctx, AppData *data) {
+   struct nk_rect viewerRect = nk_rect(0, 0, windowSize.x - optionsSize.x, windowSize.y);
+   if (nk_begin(ctx, c_str(self->name), viewerRect,
+      NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
+   {
+      viewerRect = nk_window_get_bounds(ctx);
+
+      if (!nk_input_is_mouse_down(&ctx->input, NK_BUTTON_LEFT)) {
+         //if (viewerRect.x < 0 || viewerRect.y < 0) { 
+         //   viewerRect.w = windowSize.x - optionsSize.x; 
+         //}
+         if (viewerRect.x < 0) { viewerRect.x = 0; }
+         if (viewerRect.y < 0) { viewerRect.y = 0; }
+
+         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
+         nk_window_set_bounds(ctx, viewerRect);
+      }
+
+      if (nk_window_has_focus(ctx) && nk_input_is_mouse_click_in_rect(&ctx->input, NK_BUTTON_RIGHT, viewerRect)) {
+
+         if (viewerRect.w == windowSize.x - optionsSize.x) {
+            viewerRect.w /= 2.0;
+         }
+         else {
+            viewerRect.w = windowSize.x - optionsSize.x;            
+         }
+
+         viewerRect.x = 0;
+         viewerRect.y = 0;
+         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
+         nk_window_set_bounds(ctx, viewerRect);
+      }
+
+      struct nk_rect winBounds = nk_window_get_content_region(ctx);
+      nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
+
+      float h = (winBounds.w * 9) / 16.0f;
+      nk_layout_row_begin(ctx, NK_DYNAMIC, h, 1);
+      nk_layout_row_push(ctx, 1.0f);
+
+      enum nk_widget_layout_states state;
+      struct nk_rect bounds;
+      state = nk_widget(&bounds, ctx);
+      if (state) {
+         uint32_t handle = textureGetGLHandle(data->snesTex);
+         struct nk_image img = nk_image_id(handle);
+         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+
+      }
+
+      nk_layout_row_end(ctx);
+      nk_style_pop_vec2(ctx);
+   }
+   nk_end(ctx);
+
+}
+
+
+static void _buildOptionsPalette(GUIWindow *self, AppData *data) {
+   struct nk_context *ctx = &self->parent->ctx;
 
    static int selectedPalette = 0;
    static SNESColor palette[256] = { 0 };
@@ -315,8 +547,8 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
       struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
       //if (firstLoad) {
-         memcpy(palette, data->snes->cgram.bgPalette256.colors, sizeof(SNESColor) * 256);
-         firstLoad = false;
+      memcpy(palette, data->snes->cgram.bgPalette256.colors, sizeof(SNESColor) * 256);
+      firstLoad = false;
       //}
 
       //palette table
@@ -406,72 +638,239 @@ static void _buildPalette(struct nk_context *ctx, AppData *data) {
       }
 
       nk_tree_pop(ctx);
-
       memcpy(data->snes->cgram.bgPalette256.colors, palette, sizeof(SNESColor) * 256);
    }
 }
 
-static void _buildImporter(struct nk_context *ctx, AppData *data) {
+void _optionsUpdate(GUIWindow *self, AppData *data) {
+   struct nk_context *ctx = &self->parent->ctx;
+
+   Int2 windowSize = data->window->windowResolution;
+   Float2 optionsSize = { 256.0f, windowSize.y };
+
+   struct nk_rect optRect = nk_rect(windowSize.x - optionsSize.x, 0, optionsSize.x, optionsSize.y);
+   static boolean openDemo = false;
+   
+   if (nk_begin(ctx, c_str(self->name), optRect,
+     NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
+   {
+      _buildOptionsPalette(self, data);
+
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
+         nk_layout_row_dynamic(ctx, 20, 1);
+         if (nk_button_label(ctx, "Character Importer")) {
+            GUIWindow *ctool = _charToolCreate(self->parent);
+            vecPushBack(GUIWindowPtr)(self->parent->dialogs, &ctool);
+         }
+         nk_layout_row_dynamic(ctx, 20, 1);
+         if (nk_button_label(ctx, "Nuklear Demo")) {
+            openDemo = true;
+            nk_window_show(ctx, "Overview", NK_SHOWN);
+            nk_window_set_focus(ctx, "Overview");
+         }
+
+         nk_tree_pop(ctx);
+      }
+
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Testing", NK_MINIMIZED)) {
+
+         nk_layout_row_dynamic(ctx, 20, 1);
+         nk_checkbox_label(ctx, "Debug Render", (int*)&data->snesRenderWhite);
+
+         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
+         nk_layout_row_push(ctx, 0.35f);
+         nk_labelf(ctx, NK_TEXT_RIGHT, "TestX: %i", data->testX);
+         nk_layout_row_push(ctx, 0.65f);
+         data->testX = nk_slide_int(ctx, -256, data->testX, 256, 1);
+         nk_layout_row_end(ctx);
+
+         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
+         nk_layout_row_push(ctx, 0.35f);
+         nk_labelf(ctx, NK_TEXT_RIGHT, "TestY: %i", data->testY);
+         nk_layout_row_push(ctx, 0.65f);
+         data->testY = nk_slide_int(ctx, 0, data->testY, 255, 1);
+         nk_layout_row_end(ctx);
+
+         nk_tree_pop(ctx);
+      }
+
+      if (nk_tree_push(ctx, NK_TREE_TAB, "Profiling", NK_MINIMIZED)) {
+         Microseconds full = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_FULL_FRAME);
+         Microseconds update = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_UPDATE);
+         Microseconds render = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_RENDER);
+         Microseconds gameUpdate = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GAME_UPDATE);
+         Microseconds gui = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE);
+         Microseconds snes = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER);
+         struct nk_rect wBounds = { 0 };
+         static nk_size usCap = 33333;
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);       
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Frame: %05.2f", full/1000.0f);
+         nk_progress(ctx, (nk_size*)&full, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Total frame time (ms)");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Step: %05.2f", update / 1000.0f);
+         nk_progress(ctx, (nk_size*)&update, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Frame minus fps-waits");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Game: %05.2f", gameUpdate / 1000.0f);
+         nk_progress(ctx, (nk_size*)&gameUpdate, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Game Step");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "SNES: %05.2f", snes / 1000.0f);
+         nk_progress(ctx, (nk_size*)&snes, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "SNES Software Render");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Rend: %05.2f", render / 1000.0f);
+         nk_progress(ctx, (nk_size*)&render, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Full Render (incl GUI)");
+         }
+
+         nk_layout_row_dynamic(ctx, 15, 2);
+         wBounds = nk_widget_bounds(ctx);
+         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "GUI: %05.2f", gui / 1000.0f);
+         nk_progress(ctx, (nk_size*)&gui, usCap, nk_false);
+         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
+            nk_tooltip(ctx, "Time spent in Nuklear");
+         }
+
+         nk_tree_pop(ctx);
+      }
+
+      nk_layout_row_dynamic(ctx, 0, 1);
+      enum nk_widget_layout_states state;
+      struct nk_rect bounds;
+      state = nk_widget(&bounds, ctx);
+      if (state) {
+         static Texture *logo = NULL;
+
+         if (!logo) {
+            TextureRequest request = {
+               .repeatType = RepeatType_Clamp,
+               .filterType = FilterType_Nearest,
+               .rawBuffer = enc_LogoTexture,
+               .rawSize = sizeof(enc_LogoTexture)
+            };
+            logo = textureManagerGetTexture(data->textureManager, request);
+            
+         }
+
+         struct nk_image img = nk_image_id((int)textureGetGLHandle(logo));
+         Int2 sz = textureGetSize(logo);
+
+         bounds.h = bounds.w * (sz.y / (float)sz.x);
+         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgba(255, 255, 255, 128));
+      }
+
+   }
+   nk_end(ctx);
+
+   if (openDemo) {
+      nuklear_overview(ctx);
+   }
+}
+void _taskBarUpdate(GUIWindow *self, AppData *data) {
+   struct nk_context *ctx = &self->parent->ctx;
+   Int2 windowSize = data->window->windowResolution;
+
+   struct nk_rect taskBarRect = nk_rect(0, windowSize.y - TaskBarHeight, windowSize.x - OptionsWidth, TaskBarHeight);
+   if (nk_begin(ctx, c_str(self->name), taskBarRect, NK_WINDOW_BORDER)) {
+      vec(GUIWindowPtr) *dlgs = self->parent->dialogs;
+      size_t dlgCount = vecSize(GUIWindowPtr)(dlgs);
+
+      nk_layout_row_static(ctx, 20.0f, 100.0f, dlgCount);
+
+      vecForEach(GUIWindowPtr, dlgPtr, dlgs, {
+         GUIWindow *dlg = *dlgPtr;
+         if (nk_button_label(ctx, c_str(dlg->name))) {
+            nk_window_set_focus(ctx, c_str(dlg->name));
+         }
+      });
+   }
+   nk_end(ctx);
+}
+
+void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
+   struct nk_context *ctx = &selfwin->parent->ctx;
+   CharTool *self = (CharTool*)selfwin;
 
    Int2 winSize = data->window->nativeResolution;
    Int2 dlgSize = { 825, 470 };
 
    struct nk_rect winRect = nk_rect(
-      (winSize.x - dlgSize.x) / 2.0f, 
-      (winSize.y - dlgSize.y) / 2.0f, 
+      (winSize.x - dlgSize.x) / 2.0f,
+      (winSize.y - dlgSize.y) / 2.0f,
       (float)dlgSize.x, (float)dlgSize.y);
    static boolean refreshFiles = true;
    static String *selectedFile = NULL;
    static Texture *ogTex = NULL;
    static SNESColor ogPalette[16] = { 0 };
    static SNESColor resPalette[16] = { 0 };
-   
 
-   if (nk_begin(ctx, "Character Importer", winRect,
+
+   if (nk_begin(ctx, c_str(selfwin->name), winRect,
       NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE))
    {
       static vec(StringPtr) *files = NULL;
 
-      if (!files || refreshFiles) {
-         if (files) {
-            vecDestroy(StringPtr)(files);
-            selectedFile = NULL;
-            files = NULL;
-         }
-         deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
-         refreshFiles = false;
-      }      
+      //if (!files || refreshFiles) {
+      //   if (files) {
+      //      vecDestroy(StringPtr)(files);
+      //      selectedFile = NULL;
+      //      files = NULL;
+      //   }
+      //   deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
+      //   refreshFiles = false;
+      //}
 
       int i = 0;
       struct nk_rect winBounds = nk_window_get_content_region(ctx);
 
       nk_layout_space_begin(ctx, NK_STATIC, 410, 64);
-      nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5 ));
-      if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
-         vecForEach(StringPtr, str, files, {
-            nk_layout_row_dynamic(ctx, 20, 1);
-            if (nk_button_label(ctx, c_str(*str))) {
+      //nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5));
+      //if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+      //   vecForEach(StringPtr, str, files, {
+      //      nk_layout_row_dynamic(ctx, 20, 1);
+      //   if (nk_button_label(ctx, c_str(*str))) {
 
-               if (*str != selectedFile) {
-                  selectedFile = *str;
+      //      if (*str != selectedFile) {
+      //         selectedFile = *str;
 
-                  TextureRequest request = {
-                     .repeatType = RepeatType_Clamp,
-                     .filterType = FilterType_Nearest,
-                     .path = stringIntern(c_str(selectedFile))
-                  };
+      //         TextureRequest request = {
+      //            .repeatType = RepeatType_Clamp,
+      //            .filterType = FilterType_Nearest,
+      //            .path = stringIntern(c_str(selectedFile))
+      //         };
 
 
-                  ogTex = textureManagerGetTexture(data->textureManager, request);
-                                    
-                  _processImage(ogTex, ogPalette);
-                  memcpy(resPalette, ogPalette, sizeof(SNESColor) * 16);
-               }
-               
-            }
-         });
-         nk_group_end(ctx);
-      }
+      //         ogTex = textureManagerGetTexture(data->textureManager, request);
+
+      //         _processImage(ogTex, ogPalette);
+      //         memcpy(resPalette, ogPalette, sizeof(SNESColor) * 16);
+      //      }
+
+      //   }
+      //   });
+      //   nk_group_end(ctx);
+      //}
 
       nk_layout_space_push(ctx, nk_rect(190, 0, 300, 300));
       if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
@@ -597,345 +996,71 @@ static void _buildImporter(struct nk_context *ctx, AppData *data) {
 
 
             for (tileY = 0; tileY < 8; ++tileY) {
-            for (tileX = 0; tileX < 8; ++tileX) {
-               character = (Char16 *)&snes->vram + tileY*16 + tileX;
-               memset(character, 0, sizeof(Char16));
+               for (tileX = 0; tileX < 8; ++tileX) {
+                  character = (Char16 *)&snes->vram + tileY * 16 + tileX;
+                  memset(character, 0, sizeof(Char16));
 
-            for (y = 0;  y < 8; ++y) {
-            for (x = 0;  x < 8; ++x) {
-               ColorRGBA c = pixels[(y + tileY*8)*sz.x + (x + tileX*8)];
-               if (c.a == 255) {
-                  SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+                  for (y = 0; y < 8; ++y) {
+                     for (x = 0; x < 8; ++x) {
+                        ColorRGBA c = pixels[(y + tileY * 8)*sz.x + (x + tileX * 8)];
+                        if (c.a == 255) {
+                           SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
 
-                  byte2 raw = *(byte2*)&bit15;
+                           byte2 raw = *(byte2*)&bit15;
 
-                  for (i = 1; i < 16; ++i) {
-                     byte2 raw2 = *(byte2*)&resPalette[i];
+                           for (i = 1; i < 16; ++i) {
+                              byte2 raw2 = *(byte2*)&resPalette[i];
 
-                     if (raw == raw2) {
-                        //character += tileY * 16;
-                        character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
-                        character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
-                        character->tiles[1].rows[y].planes[0] |= ((i & 4) >> 2) << x;
-                        character->tiles[1].rows[y].planes[1] |= ((i & 8) >> 3) << x;
-                        break;
+                              if (raw == raw2) {
+                                 //character += tileY * 16;
+                                 character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
+                                 character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
+                                 character->tiles[1].rows[y].planes[0] |= ((i & 4) >> 2) << x;
+                                 character->tiles[1].rows[y].planes[1] |= ((i & 8) >> 3) << x;
+                                 break;
+                              }
+                           }
+                        }
                      }
                   }
                }
-            }}}}
+            }
          }
       }
 
       nk_layout_space_end(ctx);
-
-
-
    }
 
    nk_end(ctx);
 }
+
+static void _updateDialog(GUIWindowPtr *win, AppData *data, vec(GUIWindowPtr) *remList) {
+   GUIWindow *dlg = *win;
+   struct nk_context *ctx = &dlg->parent->ctx;
+
+   dlg->update(dlg, data);
+
+   if (nk_window_is_hidden(ctx, c_str(dlg->name))) {
+      nk_window_close(ctx, c_str(dlg->name));
+      vecPushBack(GUIWindowPtr)(remList, win);
+   }
+}
+
 
 void guiUpdate(GUI *self, AppData *data) {
-   struct nk_context *ctx = &self->ctx;
+   _viewerUpdate(self->viewer, data);
+   _optionsUpdate(self->options, data);
+   _taskBarUpdate(self->taskBar, data);
 
-   Int2 windowSize = data->window->windowResolution;
-   Float2 optionsSize = { 256.0f, windowSize.y };
+   vec(GUIWindowPtr) *remList = vecCreate(GUIWindowPtr)(NULL);
+   vecForEach(GUIWindowPtr, win, self->dialogs, {
+      _updateDialog(win, data, remList);
+   });
 
-   struct nk_rect optRect = nk_rect(windowSize.x - optionsSize.x, 0, optionsSize.x, optionsSize.y);
-   static boolean openDemo = false, openImporter = false;
-   
+   vecForEach(GUIWindowPtr, win, remList, {
+      vecRemove(GUIWindowPtr)(self->dialogs, win);
+   });
 
-   if (nk_begin(ctx, "Options", optRect,
-     NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE))
-   {
-      _buildPalette(ctx, data);
-
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
-         nk_layout_row_dynamic(ctx, 20, 1);
-         if (nk_button_label(ctx, "Character Importer")) {
-            openImporter = true;
-            nk_window_show(ctx, "Character Importer", NK_SHOWN);
-            nk_window_set_focus(ctx, "Character Importer");
-         }
-         nk_layout_row_dynamic(ctx, 20, 1);
-         if (nk_button_label(ctx, "Nuklear Demo")) {
-            openDemo = true;
-            nk_window_show(ctx, "Overview", NK_SHOWN);
-            nk_window_set_focus(ctx, "Overview");
-         }
-
-         nk_tree_pop(ctx);
-      }
-
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Testing", NK_MINIMIZED)) {
-
-         nk_layout_row_dynamic(ctx, 20, 1);
-         nk_checkbox_label(ctx, "Debug Render", (int*)&data->snesRenderWhite);
-
-         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
-         nk_layout_row_push(ctx, 0.35f);
-         nk_labelf(ctx, NK_TEXT_RIGHT, "TestX: %i", data->testX);
-         nk_layout_row_push(ctx, 0.65f);
-         data->testX = nk_slide_int(ctx, -256, data->testX, 256, 1);
-         nk_layout_row_end(ctx);
-
-         nk_layout_row_begin(ctx, NK_DYNAMIC, 20, 2);
-         nk_layout_row_push(ctx, 0.35f);
-         nk_labelf(ctx, NK_TEXT_RIGHT, "TestY: %i", data->testY);
-         nk_layout_row_push(ctx, 0.65f);
-         data->testY = nk_slide_int(ctx, 0, data->testY, 255, 1);
-         nk_layout_row_end(ctx);
-
-         nk_tree_pop(ctx);
-      }
-
-      if (nk_tree_push(ctx, NK_TREE_TAB, "Profiling", NK_MINIMIZED)) {
-         Microseconds full = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_FULL_FRAME);
-         Microseconds update = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_UPDATE);
-         Microseconds render = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_RENDER);
-         Microseconds gameUpdate = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GAME_UPDATE);
-         Microseconds gui = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_GUI_UPDATE);
-         Microseconds snes = frameProfilerGetProfileAverage(data->frameProfiler, PROFILE_SNES_RENDER);
-         struct nk_rect wBounds = { 0 };
-         static nk_size usCap = 33333;
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);       
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Frame: %05.2f", full/1000.0f);
-         nk_progress(ctx, (nk_size*)&full, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "Total frame time (ms)");
-         }
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Step: %05.2f", update / 1000.0f);
-         nk_progress(ctx, (nk_size*)&update, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "Frame minus fps-waits");
-         }
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Game: %05.2f", gameUpdate / 1000.0f);
-         nk_progress(ctx, (nk_size*)&gameUpdate, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "Game Step");
-         }
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "SNES: %05.2f", snes / 1000.0f);
-         nk_progress(ctx, (nk_size*)&snes, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "SNES Software Render");
-         }
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "Rend: %05.2f", render / 1000.0f);
-         nk_progress(ctx, (nk_size*)&render, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "Full Render (incl GUI)");
-         }
-
-         nk_layout_row_dynamic(ctx, 15, 2);
-         wBounds = nk_widget_bounds(ctx);
-         nk_labelf(ctx, NK_TEXT_ALIGN_RIGHT, "GUI: %05.2f", gui / 1000.0f);
-         nk_progress(ctx, (nk_size*)&gui, usCap, nk_false);
-         if (nk_input_is_mouse_hovering_rect(&ctx->input, wBounds)) {
-            nk_tooltip(ctx, "Time spent in Nuklear");
-         }
-
-         nk_tree_pop(ctx);
-      }
-
-
-
-
-      
-
-
-      nk_layout_row_dynamic(ctx, 0, 1);
-      enum nk_widget_layout_states state;
-      struct nk_rect bounds;
-      state = nk_widget(&bounds, ctx);
-      if (state) {
-         static Texture *logo = NULL;
-
-         if (!logo) {
-            TextureRequest request = {
-               .repeatType = RepeatType_Clamp,
-               .filterType = FilterType_Nearest,
-               .rawBuffer = enc_LogoTexture,
-               .rawSize = sizeof(enc_LogoTexture)
-            };
-            logo = textureManagerGetTexture(data->textureManager, request);
-
-            
-         }
-
-         struct nk_image img = nk_image_id((int)textureGetGLHandle(logo));
-
-         bounds.h = bounds.w * (49.0f / 145.0f);
-         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgba(255, 255, 255, 128));
-      }
-
-   }
-   nk_end(ctx);
-
-   struct nk_rect viewerRect = nk_rect(0, 0, windowSize.x - optionsSize.x, windowSize.y);
-   if (nk_begin(ctx, "Viewer", viewerRect,
-      NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE  ))
-   {
-      viewerRect = nk_window_get_bounds(ctx);
-
-      if (!nk_input_is_mouse_down(&ctx->input, NK_BUTTON_LEFT)) {
-         //if (viewerRect.x < 0 || viewerRect.y < 0) { 
-         //   viewerRect.w = windowSize.x - optionsSize.x; 
-         //}
-         if (viewerRect.x < 0) { viewerRect.x = 0; }
-         if (viewerRect.y < 0) { viewerRect.y = 0; }
-
-         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
-         nk_window_set_bounds(ctx, viewerRect);
-      }
-
-      if (nk_window_has_focus(ctx) && nk_input_is_mouse_click_in_rect(ctx, NK_BUTTON_RIGHT, viewerRect)) {
-
-         if (viewerRect.w == windowSize.x - optionsSize.x) {
-            viewerRect.w /= 2.0;
-         }
-         else {
-            viewerRect.w = windowSize.x - optionsSize.x;            
-         }
-
-         viewerRect.x = 0;
-         viewerRect.y = 0;
-         viewerRect.h = (viewerRect.w * 9) / 16.0f + 50;
-         nk_window_set_bounds(ctx, viewerRect);
-      }
-
-      struct nk_rect winBounds = nk_window_get_content_region(ctx);
-      nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 0));
-
-      float h = (winBounds.w * 9) / 16.0f;
-      nk_layout_row_begin(ctx, NK_DYNAMIC, h, 1);
-      nk_layout_row_push(ctx, 1.0f);
-
-      enum nk_widget_layout_states state;
-      struct nk_rect bounds;
-      state = nk_widget(&bounds, ctx);
-      if (state) {
-         uint32_t handle = textureGetGLHandle(data->snesTex);
-         struct nk_image img = nk_image_id(handle);
-         nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
-
-      }
-
-      nk_layout_row_end(ctx);
-      nk_style_pop_vec2(ctx);
-   }
-   nk_end(ctx);
-
-
-
-   if (openImporter) {
-      _buildImporter(ctx, data);
-   }
-
-   
-   if (openDemo) {
-      nuklear_overview(ctx);
-   }
+   vecDestroy(GUIWindowPtr)(remList);
 }
 
-
-static void _render(GUI *self, Renderer *r) {
-   OGLData *ogl = &self->ogl;
-   void *vertices, *elements;
-
-   glEnable(GL_BLEND);
-   glBlendEquation(GL_FUNC_ADD);
-   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-   glDisable(GL_CULL_FACE);
-   glDisable(GL_DEPTH_TEST);
-   glEnable(GL_SCISSOR_TEST);
-   glActiveTexture(GL_TEXTURE0);
-
-   glBindVertexArray(ogl->vao);
-   glBindBuffer(GL_ARRAY_BUFFER, ogl->vbo);
-   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ogl->ebo);
-
-   glHelperBindVertexAttrributes(ogl->attrs, sizeof(GUIVertex));
-
-   glBufferData(GL_ARRAY_BUFFER, MAX_VERTEX_MEMORY, NULL, GL_STREAM_DRAW);
-   glBufferData(GL_ELEMENT_ARRAY_BUFFER, MAX_ELEMENT_MEMORY, NULL, GL_STREAM_DRAW);
-
-   vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-   elements = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
-   {
-      /* fill convert configuration */
-      struct nk_convert_config config;
-      static const struct nk_draw_vertex_layout_element vertex_layout[] = {
-         { NK_VERTEX_POSITION, NK_FORMAT_FLOAT, NK_OFFSETOF(GUIVertex, pos2) },
-         { NK_VERTEX_TEXCOORD, NK_FORMAT_FLOAT, NK_OFFSETOF(GUIVertex, tex2) },
-         { NK_VERTEX_COLOR, NK_FORMAT_R32G32B32A32_FLOAT, NK_OFFSETOF(GUIVertex, col4) },
-         { NK_VERTEX_LAYOUT_END }
-      };
-      NK_MEMSET(&config, 0, sizeof(config));
-      config.vertex_layout = vertex_layout;
-      config.vertex_size = sizeof(GUIVertex);
-      config.vertex_alignment = NK_ALIGNOF(GUIVertex);
-      config.null = self->null;
-      config.circle_segment_count = 22;
-      config.curve_segment_count = 22;
-      config.arc_segment_count = 22;
-      config.global_alpha = 1.0f;
-      config.shape_AA = NK_ANTI_ALIASING_ON;
-      config.line_AA = NK_ANTI_ALIASING_ON;
-
-      /* setup buffers to load vertices and elements */
-      {struct nk_buffer vbuf, ebuf;
-      nk_buffer_init_fixed(&vbuf, vertices, (nk_size)MAX_VERTEX_MEMORY);
-      nk_buffer_init_fixed(&ebuf, elements, (nk_size)MAX_ELEMENT_MEMORY);
-      nk_convert(&self->ctx, &self->cmds, &vbuf, &ebuf, &config);}
-   }
-
-   glUnmapBuffer(GL_ARRAY_BUFFER);
-   glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
-
-   const struct nk_draw_command *cmd;
-   const nk_draw_index *offset = NULL;
-   Int2 winSize = r_getSize(r);
-
-   nk_draw_foreach(cmd, &self->ctx, &self->cmds) {
-      if (!cmd->elem_count) continue;
-      glBindTexture(GL_TEXTURE_2D, (GLuint)cmd->texture.id);
-
-      glScissor((GLint)(cmd->clip_rect.x),
-            (GLint)((winSize.y - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h))),
-            (GLint)(cmd->clip_rect.w),
-            (GLint)(cmd->clip_rect.h));
-
-      glDrawElements(GL_TRIANGLES, (GLsizei)cmd->elem_count, GL_UNSIGNED_SHORT, offset);
-      offset += cmd->elem_count;
-   }
-   nk_clear(&self->ctx);
-
-   glBindBuffer(GL_ARRAY_BUFFER, 0);
-   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-   glBindVertexArray(0);
-
-   glDisable(GL_BLEND);
-   glDisable(GL_SCISSOR_TEST);
-}
-
-
-void guiRender(GUI *self, Renderer *r) {
-   //_buildLayout(self);
-
-   //nuklear_overview(&self->ctx);
-
-   _render(self, r);
-}

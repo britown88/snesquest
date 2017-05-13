@@ -166,6 +166,10 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
 
    (Window*)out->data.window = &out->winData;
 
+#ifdef _DEBUG
+   out->data.guiEnabled = true;
+#endif
+
    return out;
 }
 void appDestroy(App *self) {

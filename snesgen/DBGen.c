@@ -1029,7 +1029,6 @@ static void _generateFiles(const char *file, DBGenLexer *lexer) {
    stringDestroy(data.outputh);
    stringDestroy(data.outputc);
 
-   printf("***********************************\n");
 }
 
 
