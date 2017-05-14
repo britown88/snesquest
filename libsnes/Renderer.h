@@ -62,6 +62,7 @@ TextureManager *textureManagerCreate(AppData *data);
 void textureManagerDestroy(TextureManager *self);
 Texture *textureManagerGetTexture(TextureManager *self, const TextureRequest request);
 
+Texture *textureCreate(const TextureRequest request);
 Texture *textureCreateCustom(int width, int height, RepeatType repeatType, FilterType filterType);
 void textureDestroy(Texture *self);
 

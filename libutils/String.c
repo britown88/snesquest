@@ -62,6 +62,10 @@ String *stringGetFilename(String *self) {
    size_t oLen = stringLen(self);
    size_t begin = dirPos < stringNPos ? dirPos + 1 : 0;
    size_t len = dotPos < stringNPos ? dotPos - begin : oLen;
+
+   if (!dotPos) {
+      len = oLen - (dirPos+1);
+   }
    
    String *out = stringCreate("");
    vecResize(char)((vec(char)*)out, len + 1, &(char){0});

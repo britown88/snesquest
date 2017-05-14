@@ -30,62 +30,36 @@
 
 static struct nk_color _colorToNKColor(ColorRGBA in) { return nk_rgb(in.r, in.g, in.b); }
 
-typedef struct {
-   ColorRGBA original;
-   SNESColor bit15;
-   int hitCount;
-}ColorEntry;
-
-#define VectorT ColorEntry
+#define VectorT SNESColor
 #include "libutils/Vector_Create.h"
 
-static void _processImage(Texture *tex, SNESColor *out) {
+static void _getUniqueColors(Texture *tex, vec(SNESColor) *out) {
    const ColorRGBA *pixels = textureGetPixels(tex);
    Int2 sz = textureGetSize(tex);
    int x, y;
 
-   memset(out, 0, sizeof(SNESColor) * 16);
-
-
-   vec(ColorEntry) *entries = vecCreate(ColorEntry)(NULL);
-   //ColorEntry newEntry = { 0 };
-   //newEntry.original = (ColorRGBA){0,0,0,255};
-   //newEntry.bit15 = (SNESColor) { 0, 0, 0};
-   //newEntry.hitCount = 1;
-   //vecPushBack(ColorEntry)(entries, &newEntry);
-
+   vecClear(SNESColor)(out);
    for (y = 0; y < sz.y; ++y) {
       for (x = 0; x < sz.x; ++x) {
-         ColorRGBA c = pixels[y*sz.x + x];
+         ColorRGBA c =  pixels[y*sz.x + x];
          if (c.a == 255) {
-            SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+            SNESColor bit15 = snesColorConvertFrom24Bit(c);
+            byte2 raw = *(byte2*)&bit15;
 
             boolean found = false;
-            vecForEach(ColorEntry, entry, entries, {
-               if (entry->bit15.r == bit15.r &&
-               entry->bit15.g == bit15.g &&
-                  entry->bit15.b == bit15.b) {
+            vecForEach(SNESColor, other, out, {
+               if (raw == *(byte2*)other) {
                   found = true;
-                  ++entry->hitCount;
+                  break;
                }
             });
 
             if (!found) {
-               ColorEntry newEntry = { 0 };
-               newEntry.original = c;
-               newEntry.bit15 = bit15;
-               newEntry.hitCount = 1;
-               vecPushBack(ColorEntry)(entries, &newEntry);
+               vecPushBack(SNESColor)(out, &bit15);
             }
          }
       }
    }
-
-   for (x = 0; x < 15; ++x) {
-      out[x + 1] = vecAt(ColorEntry)(entries, x)->bit15;
-   }
-
-   vecDestroy(ColorEntry)(entries);
 }
 
 typedef struct GUIWindow_t GUIWindow;
@@ -425,9 +399,42 @@ static void _viewerUpdate(GUIWindow *self, AppData *data);
 static void _optionsUpdate(GUIWindow *self, AppData *data);
 static void _taskBarUpdate(GUIWindow *self, AppData *data);
 
+typedef struct FileDirectory_t FileDirectory;
+#define VectorTPart FileDirectory
+#include "libutils/Vector_Decl.h"
+
+typedef struct FileDirectory_t {
+   vec(StringPtr) *files;
+   vec(FileDirectory) *children;
+   String *path, *name;
+}FileDirectory;
+
+#define VectorTPart FileDirectory
+#include "libutils/Vector_Impl.h"
+
+static void _fileDirectoryDestroy(FileDirectory *self) {
+   stringDestroy(self->path);
+   stringDestroy(self->name);
+   vecDestroy(StringPtr)(self->files);
+   vecDestroy(FileDirectory)(self->children);
+}
+
+static void _fileDirectoryInit(FileDirectory *self, const char *path) {
+   self->path = stringCreate(path);
+   self->name = stringGetFilename(self->path);
+   self->children = vecCreate(FileDirectory)(&_fileDirectoryDestroy);
+   self->files = vecCreate(StringPtr)(&stringPtrDestroy);
+}
+
 typedef struct {
    GUIWindow base;
-   int someOtherData;
+
+   FileDirectory files;
+   boolean filesLoaded;
+
+   Texture *imported;
+   vec(SNESColor) *importedColors;
+
 }CharTool;
 static void _charToolUpdate(GUIWindow *self, AppData *data);
 static void _charToolDestroy(GUIWindow *self);
@@ -437,19 +444,29 @@ static GUIWindow *_charToolCreate(GUI *gui) {
    GUIWindow *outwin = (GUIWindow*)out;
 
    outwin->parent = gui;
-   outwin->name = stringCreate("Character Importer");
+   outwin->name = stringCreate("CharTool|");
 
    char buff[8] = { 0 };
-   sprintf(buff, " {%i}", gui->charToolCount++);
+   sprintf(buff, "%i|", gui->charToolCount++);
    stringConcat(outwin->name, buff);
 
    outwin->destroy = &_charToolDestroy;
    outwin->update = &_charToolUpdate;
 
+   _fileDirectoryInit(&out->files, ".");
+
+   out->importedColors = vecCreate(SNESColor)(NULL);
+
    return outwin;
 }
-void _charToolDestroy(GUIWindow *self) {
+void _charToolDestroy(GUIWindow *_self) {
+   CharTool *self = (CharTool*)_self;
+   _fileDirectoryDestroy(&self->files);
+   if (self->imported) {
+      textureDestroy(self->imported);
+   }
 
+   vecDestroy(SNESColor)(self->importedColors);
 }
 
 void _createWindows(GUI *self) {
@@ -658,7 +675,7 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
 
       if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
          nk_layout_row_dynamic(ctx, 20, 1);
-         if (nk_button_label(ctx, "Character Importer")) {
+         if (nk_button_label(ctx, "CharTool")) {
             GUIWindow *ctool = _charToolCreate(self->parent);
             vecPushBack(GUIWindowPtr)(self->parent->dialogs, &ctool);
          }
@@ -808,17 +825,206 @@ void _taskBarUpdate(GUIWindow *self, AppData *data) {
    nk_end(ctx);
 }
 
+static void _loadFiles(FileDirectory *root) {
+   vec(StringPtr) *dirs = 0, *files = 0;
+   const char *path = c_str(root->path);
+   deviceContextListFiles(path, DC_FILE_DIR_ONLY, &dirs, NULL);
+   deviceContextListFiles(path, DC_FILE_FILE_ONLY, &files, "png");
+
+   if (dirs) { 
+      vecForEach(StringPtr, str, dirs, { 
+         FileDirectory newDir = {0};
+         _fileDirectoryInit(&newDir, c_str(*str));
+         _loadFiles(&newDir);
+         vecPushBack(FileDirectory)(root->children, &newDir);
+      });
+      vecDestroy(StringPtr)(dirs); 
+   }
+
+   if (files) { 
+      vecForEach(StringPtr, str, files, { 
+         String *strcpy = stringCopy(*str);
+         vecPushBack(StringPtr)(root->files, &strcpy);
+      });
+      vecDestroy(StringPtr)(files);
+   }
+}
+static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
+   String *out = NULL;
+   vecForEach(FileDirectory, dir, root->children, {
+
+      if (nk_tree_push_id(ctx, NK_TREE_TAB, c_str(dir->name), NK_MINIMIZED, (int)dir)) {         
+         out = _buildFileTree(ctx, dir);
+
+         vecForEach(StringPtr, f, dir->files, {
+            String *justfile = stringGetFilename(*f);
+            nk_layout_row_dynamic(ctx, 20, 1);
+            if (nk_button_label(ctx, c_str(justfile))) {
+               out = *f;
+            }
+            stringDestroy(justfile);
+         });         
+
+         nk_tree_pop(ctx);
+      }
+   });
+
+   return out;
+}
+
 void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    struct nk_context *ctx = &selfwin->parent->ctx;
    CharTool *self = (CharTool*)selfwin;
 
    Int2 winSize = data->window->nativeResolution;
-   Int2 dlgSize = { 825, 470 };
+   static const Int2 dlgSize = { 800, 500 };
 
    struct nk_rect winRect = nk_rect(
       (winSize.x - dlgSize.x) / 2.0f,
       (winSize.y - dlgSize.y) / 2.0f,
       (float)dlgSize.x, (float)dlgSize.y);
+
+   static nk_flags winFlags = 
+      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER |
+      NK_WINDOW_TITLE | NK_WINDOW_MOVABLE |
+      NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE;
+
+   if (nk_begin(ctx, c_str(selfwin->name), winRect, winFlags)){
+
+      //menu
+      nk_menubar_begin(ctx);
+      nk_layout_row_begin(ctx, NK_STATIC, 25, 4);
+      nk_layout_row_push(ctx, 45);
+      if (nk_menu_begin_label(ctx, "Import", NK_TEXT_LEFT, nk_vec2(300, INT_MAX))) {
+         if (!self->filesLoaded) {
+            _loadFiles(&self->files);
+            self->filesLoaded = true;
+         }
+         nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT);
+
+         String *found = NULL;
+         if (found = _buildFileTree(ctx, &self->files)) {
+            if (self->imported) {
+               textureDestroy(self->imported);
+            }
+
+            TextureRequest request = {
+               .repeatType = RepeatType_Clamp,
+               .filterType = FilterType_Nearest,
+               .path = stringIntern(c_str(found))
+            };
+
+            if (self->imported = textureCreate(request)) {
+               _getUniqueColors(self->imported, self->importedColors);
+            }
+
+            nk_menu_close(ctx);
+         }
+
+         nk_style_pop_flags(ctx);
+
+         nk_menu_end(ctx);
+      }
+      else if (self->filesLoaded) {         
+         _fileDirectoryDestroy(&self->files);
+         _fileDirectoryInit(&self->files, ".");
+         self->filesLoaded = false;
+      }
+
+      nk_menubar_end(ctx);
+
+      //split panel
+      struct nk_rect area = nk_window_get_content_region(ctx);
+
+      const int palHeight = 100;
+
+      nk_layout_row_dynamic(ctx, area.h - palHeight - 10, 2);
+      if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+         if (self->imported) {
+            struct nk_panel *pnl = nk_window_get_panel(ctx);
+
+            nk_layout_row_dynamic(ctx, 0, 1);
+            struct nk_rect rbounds;
+            nk_layout_peek(&rbounds, ctx);            
+
+            struct nk_image img = nk_image_id((int)textureGetGLHandle(self->imported));
+            Int2 impSize = textureGetSize(self->imported);
+            float ratio = impSize.x / (float)impSize.y;
+
+            nk_layout_row_dynamic(ctx, impSize.y > impSize.x ? pnl->bounds.h - 15 : rbounds.w / ratio, 1);
+
+            struct nk_rect bounds;
+            if (nk_widget(&bounds, ctx)) {
+               if (impSize.y > impSize.x) {
+                  bounds.w = bounds.h * ratio;
+               }
+               nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+            }
+         }
+
+         nk_group_end(ctx);
+      }
+
+      if (nk_group_begin(ctx, "Encoding", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+         nk_group_end(ctx);
+      }
+
+      struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
+
+      nk_layout_row_begin(ctx, NK_DYNAMIC, palHeight, 2);
+      nk_layout_row_push(ctx, 0.5);
+      if (nk_group_begin(ctx, "Unique Colors", NK_WINDOW_BORDER)) {
+
+         if (self->imported) {
+            struct nk_rect bounds;
+            struct nk_panel *pnl = nk_window_get_panel(ctx);
+
+            int palWidth = 20, palHeight = 20;
+
+            nk_layout_row_dynamic(ctx, palHeight, 1);
+
+            int perRow = pnl->bounds.w / palWidth - 1;
+
+            int rowSize = 0;
+            vecForEach(SNESColor, c, self->importedColors, {
+               if (!rowSize) {
+                  nk_widget(&bounds, ctx);
+                  bounds.w = palWidth;
+                  bounds.h = palHeight - 5;
+               }
+            nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(*c)));
+            bounds.x += palWidth;
+            if (++rowSize >= perRow) {
+               rowSize = 0;
+            }
+            });
+
+            Int2 impSize = textureGetSize(self->imported);
+
+            nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Colors: %i", vecSize(SNESColor)(self->importedColors));
+            nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Size: %i x %i", impSize.x, impSize.y);
+         }
+         
+
+         nk_group_end(ctx);
+      }
+
+      nk_layout_row_push(ctx, 0.5);
+      if (nk_group_begin(ctx, "Encode Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+         struct nk_panel *pnl= nk_window_get_panel(ctx);
+
+         struct nk_rect gbounds = nk_layout_space_bounds(ctx);
+         nk_group_end(ctx);
+      }
+
+      nk_layout_row_end(ctx);
+   }
+   nk_end(ctx);
+   /*
+
+   
    static boolean refreshFiles = true;
    static String *selectedFile = NULL;
    static Texture *ogTex = NULL;
@@ -1032,6 +1238,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    }
 
    nk_end(ctx);
+   */
 }
 
 static void _updateDialog(GUIWindowPtr *win, AppData *data, vec(GUIWindowPtr) *remList) {

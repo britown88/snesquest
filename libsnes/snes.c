@@ -13,6 +13,10 @@ ColorRGBA snesColorConverTo24Bit(SNESColor in) {
    };
 }
 
+SNESColor snesColorConvertFrom24Bit(ColorRGBA in) {
+   return (SNESColor) { .r = in.r >> 3, .g = in.g >> 3, .b = in.b >> 3 };
+}
+
 //output is 512x168 32-bit color RGBA
 void snesRender(SNES *self, ColorRGBA *out, int flags) {
    int x = 0, y = 0;

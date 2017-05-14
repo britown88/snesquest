@@ -255,7 +255,7 @@ struct Texture_t {
    TextureManager *parent;
 };
 
-static Texture *_textureCreate(const TextureRequest request) {
+Texture *textureCreate(const TextureRequest request) {
    int x = 0, y = 0, comp = 0;
 
    if (request.path) {
@@ -413,7 +413,7 @@ Texture *textureManagerGetTexture(TextureManager *self, const TextureRequest req
 
    TexturePtr *found = htFind(TexturePtr)(self->textures, &search);
    if (!found) {
-      Texture *newTex = _textureCreate(request);
+      Texture *newTex = textureCreate(request);
       newTex->parent = self;
       if (newTex) {
          htInsert(TexturePtr)(self->textures, &newTex);
@@ -475,7 +475,7 @@ void textureDestroy(Texture *self) {
 }
 
 Texture *textureCreateCustom(int width, int height, RepeatType repeatType, FilterType filterType) {
-   Texture *out = _textureCreate((TextureRequest){repeatType, filterType, NULL});
+   Texture *out = textureCreate((TextureRequest){repeatType, filterType, NULL});
 
    out->size.x = width;
    out->size.y = height;

@@ -19,6 +19,7 @@ typedef struct {
 } SNESColor;
 
 ColorRGBA snesColorConverTo24Bit(SNESColor in);
+SNESColor snesColorConvertFrom24Bit(ColorRGBA in);
 
 
 typedef struct {
