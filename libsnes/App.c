@@ -348,7 +348,7 @@ static void _renderStep(App *self) {
    else {
       Float2 size = { 0 };
 
-      size.x = winSize.x;
+      size.x = (float)winSize.x;
       size.y = (size.x * 9.0f) / 16.0f;
 
       _renderBasicRectModel(self, self->rData.snesTexture, (Float2) { 0.0f, 0.0f }, size, White);
