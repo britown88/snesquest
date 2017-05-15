@@ -445,6 +445,21 @@ static void _fileDirectoryInit(FileDirectory *self, const char *path) {
    self->files = vecCreate(StringPtr)(&stringPtrDestroy);
 }
 
+
+typedef enum {
+   ColorOption4,
+   ColorOption16,
+   ColorOption256   
+}e_ColorOptions;
+static const char* ColorOptions[3] = { "4-Color", "16-Color", "256-Color" };
+static int _colorCountFromOption(e_ColorOptions opt) {
+   switch (opt) {
+   case ColorOption4: return 4;
+   case ColorOption16: return 16;
+   case ColorOption256: return 256;
+   }
+}
+
 typedef struct {
    GUIWindow base;
 
@@ -457,6 +472,8 @@ typedef struct {
    ColorRGBA *encodeTestPixels;//updated encode image to push to encodetest
    vec(SNESColor) *encodePalette;
 
+   e_ColorOptions colorOption;
+   int optXOffset, optYOffset, optXTileCount, optYTileCount;
 }CharTool;
 static void _charToolUpdate(GUIWindow *self, AppData *data);
 static void _charToolDestroy(GUIWindow *self);
@@ -480,7 +497,8 @@ static GUIWindow *_charToolCreate(GUI *gui) {
    out->importedColors = vecCreate(ColorMapEntry)(NULL);
    out->encodePalette = vecCreate(SNESColor)(NULL);
 
-   vecResize(SNESColor)(out->encodePalette, 16, &(SNESColor){0});
+   out->colorOption = ColorOption16;
+   vecResize(SNESColor)(out->encodePalette, _colorCountFromOption(out->colorOption), &(SNESColor){0});
 
    return outwin;
 }
@@ -534,7 +552,7 @@ static void _updateEncodeTest(CharTool *self) {
 
    textureSetPixels(self->encodeTest, (byte*)self->encodeTestPixels);
 
-   if (encTestLineTimer++ % 15 == 0) {
+   if (encTestLineTimer++ % 30 == 0) {
       ++encTestLineCounter;
    }
    
@@ -1123,6 +1141,22 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
       nk_layout_row_push(ctx, 0.2f);
       if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {         
+         nk_layout_row_dynamic(ctx, 20, 1);
+
+         if (self->imported) {
+            int choice = nk_combo(ctx, ColorOptions, 3, self->colorOption, 20, nk_vec2(100, 100));
+            if (choice != self->colorOption) {
+               self->colorOption = choice;
+               vecResize(SNESColor)(self->encodePalette, _colorCountFromOption(self->colorOption), &(SNESColor){0});
+               _smartFillEncodedPalette(self);
+            }
+            Int2 impSize = textureGetSize(self->imported);
+
+            self->optXOffset = nk_propertyi(ctx, "X Offset", 0, self->optXOffset, impSize.x, 1, 1.0f);
+            self->optYOffset = nk_propertyi(ctx, "Y Offset", 0, self->optYOffset, impSize.y, 1, 1.0f);
+            self->optXTileCount = nk_propertyi(ctx, "X Tiles", 0, self->optXTileCount, impSize.x/8 + (impSize.x%8 ? 1 : 0), 1, 1.0f);
+            self->optYTileCount = nk_propertyi(ctx, "Y Tiles", 0, self->optYTileCount, impSize.y/8 + (impSize.y % 8 ? 1 : 0), 1, 1.0f);
+         }
 
          nk_group_end(ctx);
       }
@@ -1215,6 +1249,8 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       nk_layout_row_push(ctx, 0.2f);
       if (nk_group_begin(ctx, "Encode Options", 0)) {
          struct nk_panel *pnl = nk_window_get_panel(ctx);
+
+         
 
 
          nk_group_end(ctx);
