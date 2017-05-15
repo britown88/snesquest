@@ -5,19 +5,18 @@
 
 
 ColorRGBA snesColorConverTo24Bit(SNESColor in) {
+   /*
+   stretch top 3 bits into lower 3 bits of target
+   5bit :     43210
+   target: 43210432
+   */
+
    return (ColorRGBA) {
-      .r = (255 * in.r) / 31,
-      .g = (255 * in.g) / 31,
-      .b = (255 * in.b) / 31,
+      .r = (in.r >> 2) | (in.r << 3),
+      .g = (in.g >> 2) | (in.g << 3),
+      .b = (in.b >> 2) | (in.b << 3),
       .a = 255
    };
-
-   /*return (ColorRGBA) {
-      .r = ((in.r >> 2) << 5) + in.r,
-      .g = ((in.g >> 2) << 5) + in.g,
-      .b = ((in.b >> 2) << 5) + in.b,
-      .a = 255
-   };*/
 }
 
 SNESColor snesColorConvertFrom24Bit(ColorRGBA in) {

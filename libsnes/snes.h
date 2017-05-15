@@ -136,9 +136,9 @@ typedef struct {
    };
 } Tile;
 
-// Tilemaps consist of 32 tiles
+// Tilemaps consist of 32x32 tiles
 typedef struct {
-   Tile tiles[32];
+   Tile tiles[32 * 32];
 }TileMap;
 
 // vram is 64kb of tiles and characters
@@ -146,6 +146,21 @@ typedef struct {
 // obj characters are here as well.  They have two dedicated 16x16 character maps whose adresses are set by registers
 //    these dont have to be adjecent in memory! there may be a gap, designated by another register
 // tilemaps come in contigous blocks of 1, 2, or 4 depending on the size registers
+
+// some helpful sizes
+/*
+      1 OBJ Character Map (16x16 8x8 16-color tiles) - 8kb
+      1 BG Tilemap (32x32 2byte tiles) - 2kb
+      1 4-color 8x8 tile - 16bytes
+      1 16-color 8x8 tile - 32bytes
+      1 256-color 8x8 tile - 64bytes
+
+      Mode 1:
+         BG0: 4 tilemaps: 8kb, 32byte tiles
+         BG1: 4 tilemaps: 8kb, 32byte tiles
+         BG2: 1 tilemap: 2kb, 16byte tiles
+         2 OBJ Char Maps: 16kb
+*/
 typedef struct {
    union {
       byte raw[0xFFFF]; //64kb

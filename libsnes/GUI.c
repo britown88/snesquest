@@ -38,6 +38,9 @@ typedef struct {
 #define VectorT ColorMapEntry
 #include "libutils/Vector_Create.h"
 
+#define VectorT SNESColor
+#include "libutils/Vector_Create.h"
+
 //colormap is a texture-sized pre-allocated array of ints for putting the pixel indices into the output palette
 static void _getUniqueColors(Texture *tex, vec(ColorMapEntry) *out, int *colorMap) {
    const ColorRGBA *pixels = textureGetPixels(tex);
@@ -452,6 +455,7 @@ typedef struct {
    vec(ColorMapEntry) *importedColors;
    int *importColorMap;//holds indices into importedColors per pixel
    ColorRGBA *encodeTestPixels;//updated encode image to push to encodetest
+   vec(SNESColor) *encodePalette;
 
 }CharTool;
 static void _charToolUpdate(GUIWindow *self, AppData *data);
@@ -474,6 +478,9 @@ static GUIWindow *_charToolCreate(GUI *gui) {
    _fileDirectoryInit(&out->files, ".");
 
    out->importedColors = vecCreate(ColorMapEntry)(NULL);
+   out->encodePalette = vecCreate(SNESColor)(NULL);
+
+   vecResize(SNESColor)(out->encodePalette, 16, &(SNESColor){0});
 
    return outwin;
 }
@@ -488,24 +495,95 @@ void _charToolDestroy(GUIWindow *_self) {
    }
 
    vecDestroy(ColorMapEntry)(self->importedColors);
+   vecDestroy(SNESColor)(self->encodePalette);
 }
 
-static void _updateEncodeTest(CharTool *self, int pixelCount) {
+static int encTestLineCounter = 0, encTestLineTimer = 0;
+static void _updateEncodeTest(CharTool *self) {
    int i = 0;
    ColorRGBA *pixels = self->encodeTestPixels;
+   Int2 encSize = textureGetSize(self->encodeTest);
+   int pixelCount = encSize.x * encSize.y;
 
    for (i = 0; i < pixelCount; ++i) {
       int colorIndex = self->importColorMap[i];
       ColorRGBA c = { 0 };
+
       if (colorIndex >= 0) {
-         ColorMapEntry entry = *vecAt(ColorMapEntry)(self->importedColors, colorIndex);
-         c = snesColorConverTo24Bit(entry.color);
+         ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
+
+         if (entry->encodingIndex > 0) {
+            SNESColor *ec = vecAt(SNESColor)(self->encodePalette, entry->encodingIndex);
+            c = snesColorConverTo24Bit(*ec);
+         }
+         else if (entry->encodingIndex == -1) {
+            /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
+            if (encTestLineCounter % 2) {
+               c = (ColorRGBA) { 255, 0, 0, 255 };
+            }
+            else {
+               c = snesColorConverTo24Bit(entry->color);
+            }
+         }
       }
+
+      
 
       pixels[i] = c;
    }
 
    textureSetPixels(self->encodeTest, (byte*)self->encodeTestPixels);
+
+   if (encTestLineTimer++ % 15 == 0) {
+      ++encTestLineCounter;
+   }
+   
+}
+
+static void _smartFillEncodedPalette(CharTool *self) {
+   int current = 1;
+   int i = 0;
+   Int2 encSize = textureGetSize(self->encodeTest);
+   int pixelCount = encSize.x * encSize.y;
+
+   //clear existing
+   size_t paletteSize = vecSize(SNESColor)(self->encodePalette);
+   vecClear(SNESColor)(self->encodePalette);
+   vecResize(SNESColor)(self->encodePalette, paletteSize, &(SNESColor){0});
+
+   //reset links
+   vecForEach(ColorMapEntry, entry, self->importedColors, {
+      entry->encodingIndex = -1;
+   });
+
+   for (i = 0; i < pixelCount; ++i) {
+      int entryIndex = self->importColorMap[i];
+      if (entryIndex >= 0) {
+         ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
+         //now fit it onto the palette and link it up
+
+         int p = 0;
+         for (p = 0; p < current; ++p) {
+            SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette, p);
+            if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
+               //already found
+               break;
+            }
+         }
+
+         if (p == current) { 
+            SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette, current);
+            *currentColor = entry->color;
+            entry->encodingIndex = current;
+            ++current;
+         }
+
+         if (current >= paletteSize) {
+            return;
+         }
+      }
+   }
+
 }
 
 void _createWindows(GUI *self) {
@@ -519,6 +597,9 @@ void _createWindows(GUI *self) {
    self->taskBar->update = &_taskBarUpdate;
 
    self->dialogs = vecCreate(GUIWindowPtr)(&_guiWindowPtrDestroy);
+
+   GUIWindow *ctool = _charToolCreate(self);
+   vecPushBack(GUIWindowPtr)(self->dialogs, &ctool);
 }
 
 void _destroyWindows(GUI *self){
@@ -963,7 +1044,9 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                self->encodeTestPixels = checkedCalloc(1, texSize.x * texSize.y * sizeof(ColorRGBA));
                self->encodeTest = textureCreateCustom(texSize.x, texSize.y, RepeatType_Clamp, FilterType_Nearest);
 
-               _getUniqueColors(self->imported, self->importedColors, self->importColorMap);               
+               _getUniqueColors(self->imported, self->importedColors, self->importColorMap);  
+               _smartFillEncodedPalette(self);
+               
             }
 
             nk_menu_close(ctx);
@@ -1024,7 +1107,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             Int2 imgSize = textureGetSize(self->encodeTest);
             float ratio = imgSize.x / (float)imgSize.y;
 
-            _updateEncodeTest(self, imgSize.x * imgSize.y);
+            _updateEncodeTest(self);
             nk_layout_row_dynamic(ctx, pnl->bounds.h - 15, 1);
 
             struct nk_rect bounds;
@@ -1036,10 +1119,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          }
 
          nk_group_end(ctx);
-      }
+      }      
 
       nk_layout_row_push(ctx, 0.2f);
-      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {         
 
          nk_group_end(ctx);
       }
@@ -1086,8 +1169,45 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
       nk_layout_row_push(ctx, 0.4f);
       if (nk_group_begin(ctx, "Encode Options", 0)) {
-         struct nk_panel *pnl= nk_window_get_panel(ctx);
+         struct nk_rect bounds;
+         struct nk_panel *pnl = nk_window_get_panel(ctx);
+         float palWidth = 20.0f, palHeight = 20.0f;
 
+         nk_layout_row_dynamic(ctx, palHeight, 1);
+
+         int perRow = (int)(pnl->bounds.w / palWidth - 1);
+         int rowSize = 0;
+         boolean first = true;
+         vecForEach(SNESColor, c, self->encodePalette, {
+            if (!rowSize) {
+               nk_widget(&bounds, ctx);
+               bounds.w = palWidth;
+               bounds.h = palHeight - 5;
+            }
+
+            if (first) {
+               //draw the transparency square
+               nk_fill_rect(canvas, bounds, 0, nk_rgb(255, 255, 255));
+               first = false;
+               struct nk_rect halfBounds = bounds;
+
+               halfBounds.w /= 2.0f;
+               halfBounds.h /= 2.0f;
+               nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
+
+               halfBounds.x += halfBounds.w;
+               halfBounds.y += halfBounds.h;
+               nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
+            }
+            else {
+               nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(*c)));
+            }
+            
+            bounds.x += palWidth;
+            if (++rowSize >= perRow) {
+               rowSize = 0;
+            }
+         });
 
          nk_group_end(ctx);
       }
