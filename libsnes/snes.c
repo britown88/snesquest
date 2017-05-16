@@ -10,7 +10,6 @@ ColorRGBA snesColorConverTo24Bit(SNESColor in) {
    5bit :     43210
    target: 43210432
    */
-
    return (ColorRGBA) {
       .r = (in.r >> 2) | (in.r << 3),
       .g = (in.g >> 2) | (in.g << 3),
