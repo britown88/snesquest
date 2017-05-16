@@ -466,15 +466,41 @@ typedef struct {
    FileDirectory files;
    boolean filesLoaded;
 
-   Texture *imported, *encodeTest;
-   vec(ColorMapEntry) *importedColors;
-   int *importColorMap;//holds indices into importedColors per pixel
-   ColorRGBA *encodeTestPixels;//updated encode image to push to encodetest
+   Texture 
+      //the imported image file
+      *imported, 
+
+      //the image showing how it will be encoding
+      *encodeTest; 
+
+   // the set of unique colors in imported, contains the 
+   // original color and an index into the encode palette to map to
+   vec(ColorMapEntry) *importedColors; 
+
+   // same size as imported texture, each pixel is an index into the importedColors vector
+   int *importColorMap;
+
+   // pixel buffer sent off to update encodeTest
+   ColorRGBA *encodeTestPixels;
+
+   // palette used to encode the final image
    vec(SNESColor) *encodePalette;
 
+   // how many colors in the encode palette
    e_ColorOptions colorOption;
+
+   //index into the unique colorEntries to use for  linking
+   int selectedColorLink, selectedEncodeColor;
+
+   //offset of impoirted image and how many 8x8 tiles to grab for the encode
    int optXOffset, optYOffset, optXTileCount, optYTileCount;
+   int optShowGrid;
+   int optShowColorGuide;
+
+   float grp1Resize, grp2Resize;
+
 }CharTool;
+
 static void _charToolUpdate(GUIWindow *self, AppData *data);
 static void _charToolDestroy(GUIWindow *self);
 
@@ -500,6 +526,9 @@ static GUIWindow *_charToolCreate(GUI *gui) {
    out->colorOption = ColorOption16;
    vecResize(SNESColor)(out->encodePalette, _colorCountFromOption(out->colorOption), &(SNESColor){0});
 
+   out->selectedColorLink = -1;
+   out->optShowColorGuide = true;
+
    return outwin;
 }
 void _charToolDestroy(GUIWindow *_self) {
@@ -518,51 +547,67 @@ void _charToolDestroy(GUIWindow *_self) {
 
 static int encTestLineCounter = 0, encTestLineTimer = 0;
 static void _updateEncodeTest(CharTool *self) {
-   int i = 0;
    ColorRGBA *pixels = self->encodeTestPixels;
+   int x = 0, y = 0;
    Int2 encSize = textureGetSize(self->encodeTest);
-   int pixelCount = encSize.x * encSize.y;
+   Int2 impSize = textureGetSize(self->imported);
 
-   for (i = 0; i < pixelCount; ++i) {
-      int colorIndex = self->importColorMap[i];
-      ColorRGBA c = { 0 };
+   int pixelIdx = 0;//track the pixel in the target texture
+   for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8; ++y) {
+      for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8; ++x) {
+         ColorRGBA c = { 0 };
 
-      if (colorIndex >= 0) {
-         ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
+         //skip poitential pixels outside the imported image
+         if (y < impSize.y && x < impSize.x) {
+            int mapIdx = y * impSize.x + x;
+            int colorIndex = self->importColorMap[mapIdx];
 
-         if (entry->encodingIndex > 0) {
-            SNESColor *ec = vecAt(SNESColor)(self->encodePalette, entry->encodingIndex);
-            c = snesColorConverTo24Bit(*ec);
-         }
-         else if (entry->encodingIndex == -1) {
-            /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
-            if (encTestLineCounter % 2) {
-               c = (ColorRGBA) { 255, 0, 0, 255 };
+            //skip transparent
+            if (colorIndex >= 0) {
+               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
+               boolean selected = false;
+               if (colorIndex == self->selectedColorLink) {
+                  if (encTestLineCounter % 2 && self->optShowColorGuide) {
+                     c = (ColorRGBA) { 0, 255, 0, 255 };
+                     selected = true;
+                  }
+               }
+
+               if (!selected) {
+                  if (entry->encodingIndex > 0) {
+                     SNESColor *ec = vecAt(SNESColor)(self->encodePalette, entry->encodingIndex);
+                     c = snesColorConverTo24Bit(*ec);
+
+                  }
+                  else if (entry->encodingIndex == -1 && self->optShowColorGuide) {
+                     /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
+                     if (encTestLineCounter % 2) {
+                        c = (ColorRGBA) { 255, 0, 0, 255 };
+                     }
+                     else {
+                        c = snesColorConverTo24Bit(entry->color);
+                     }
+                  }
+               }
             }
-            else {
-               c = snesColorConverTo24Bit(entry->color);
-            }
          }
+
+         pixels[pixelIdx++] = c;
       }
-
-      
-
-      pixels[i] = c;
    }
 
    textureSetPixels(self->encodeTest, (byte*)self->encodeTestPixels);
 
-   if (encTestLineTimer++ % 30 == 0) {
-      ++encTestLineCounter;
-   }
-   
 }
 
+// fills encodePalette withe first colors it finds in the encodetest subimage
+// and links these to the imported color set
 static void _smartFillEncodedPalette(CharTool *self) {
    int current = 1;
-   int i = 0;
+   int x = 0, y = 0;
    Int2 encSize = textureGetSize(self->encodeTest);
-   int pixelCount = encSize.x * encSize.y;
+   Int2 impSize = textureGetSize(self->imported);
+
 
    //clear existing
    size_t paletteSize = vecSize(SNESColor)(self->encodePalette);
@@ -573,36 +618,94 @@ static void _smartFillEncodedPalette(CharTool *self) {
    vecForEach(ColorMapEntry, entry, self->importedColors, {
       entry->encodingIndex = -1;
    });
+   for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8 && y < impSize.y; ++y) {
+      for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
+         int mapIdx = y * impSize.x + x;
+         int entryIndex = self->importColorMap[mapIdx];
 
-   for (i = 0; i < pixelCount; ++i) {
-      int entryIndex = self->importColorMap[i];
-      if (entryIndex >= 0) {
-         ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
-         //now fit it onto the palette and link it up
+         if (entryIndex >= 0) {
+            ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
+            //now fit it onto the palette and link it up
 
-         int p = 0;
-         for (p = 0; p < current; ++p) {
-            SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette, p);
-            if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
-               //already found
-               break;
+            int p = 1;
+            for (p = 1; p < current; ++p) {
+               SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette, p);
+               if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
+                  //already found
+                  break;
+               }
             }
-         }
 
-         if (p == current) { 
-            SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette, current);
-            *currentColor = entry->color;
-            entry->encodingIndex = current;
-            ++current;
-         }
+            if (p == current) {
+               SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette, current);
+               *currentColor = entry->color;
+               entry->encodingIndex = current;
+               ++current;
+            }
 
-         if (current >= paletteSize) {
-            return;
+            if (current >= paletteSize) {
+               return;
+            }
          }
       }
    }
 
 }
+
+static void _updateEncodeTestSize(CharTool *self) {
+   if (!self->imported) {
+      return;
+   }
+
+
+
+   if (self->encodeTest) {
+      textureDestroy(self->encodeTest);
+      checkedFree(self->encodeTestPixels);
+   }
+
+   Int2 encTestSize = { self->optXTileCount * 8, self->optYTileCount * 8 };
+   self->encodeTestPixels = checkedCalloc(1, encTestSize.x * encTestSize.y * sizeof(ColorRGBA));
+   self->encodeTest = textureCreateCustom(encTestSize.x, encTestSize.y, RepeatType_Clamp, FilterType_Nearest);
+
+}
+
+//Import a texture from a file update all options and such back to normal
+static void _importTextureFromFile(CharTool *self, String *file) {
+   TextureRequest request = {
+      .repeatType = RepeatType_Clamp,
+      .filterType = FilterType_Nearest,
+      .path = stringIntern(c_str(file))
+   };
+
+   Texture *imported = textureCreate(request);
+   if (!imported) {
+      //TODO: Show failure message
+      return;
+   }
+
+   //free existing buffers
+   if (self->imported) {
+      textureDestroy(self->imported);
+      checkedFree(self->importColorMap);
+   }
+
+   self->imported = imported;
+   Int2 texSize = textureGetSize(self->imported);
+
+   self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
+   self->optXOffset = 0;
+   self->optYOffset = 0;
+   self->optXTileCount = texSize.x / 8 + (texSize.x % 8 ? 1 : 0);
+   self->optYTileCount = texSize.y / 8 + (texSize.y % 8 ? 1 : 0);
+   self->selectedColorLink = -1;
+
+   _updateEncodeTestSize(self);
+   _getUniqueColors(self->imported, self->importedColors, self->importColorMap);
+   _smartFillEncodedPalette(self);
+}
+
+
 
 void _createWindows(GUI *self) {
    self->viewer = guiWindowCreate(self, "Viewer");
@@ -1015,7 +1118,8 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    CharTool *self = (CharTool*)selfwin;
 
    Int2 winSize = data->window->nativeResolution;
-   static const Int2 dlgSize = { 800, 500 };
+   static const Int2 dlgSize = { 800, 600 };
+   boolean allowRightClickCancel = true;
 
    struct nk_rect winRect = nk_rect(
       (winSize.x - dlgSize.x) / 2.0f,
@@ -1027,11 +1131,15 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       NK_WINDOW_TITLE | NK_WINDOW_MOVABLE |
       NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE;
 
+   const float palHeight = 75.0f;
+   const float optGroupWidth = 200.0f;
+   const float spacer = 10.0f;
+
    if (nk_begin(ctx, c_str(selfwin->name), winRect, winFlags)){
 
       //menu
       nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, 25, 4);
+      nk_layout_row_begin(ctx, NK_STATIC, 25, 1);
       nk_layout_row_push(ctx, 45);
       if (nk_menu_begin_label(ctx, "Import", NK_TEXT_LEFT, nk_vec2(300.0f, 5000.0f))) {
          if (!self->filesLoaded) {
@@ -1042,35 +1150,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
          String *found = NULL;
          if (found = _buildFileTree(ctx, &self->files)) {
-            if (self->imported) {
-               textureDestroy(self->imported);
-               textureDestroy(self->encodeTest);
-               checkedFree(self->importColorMap);
-               checkedFree(self->encodeTestPixels);
-            }
-
-            TextureRequest request = {
-               .repeatType = RepeatType_Clamp,
-               .filterType = FilterType_Nearest,
-               .path = stringIntern(c_str(found))
-            };
-
-            if (self->imported = textureCreate(request)) {
-               Int2 texSize = textureGetSize(self->imported);
-               
-               self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
-               self->encodeTestPixels = checkedCalloc(1, texSize.x * texSize.y * sizeof(ColorRGBA));
-               self->encodeTest = textureCreateCustom(texSize.x, texSize.y, RepeatType_Clamp, FilterType_Nearest);
-               self->optXOffset = 0;
-               self->optYOffset = 0;
-               self->optXTileCount = texSize.x / 8 + (texSize.x % 8 ? 1 : 0);
-               self->optYTileCount = texSize.y / 8 + (texSize.y % 8 ? 1 : 0);
-
-               _getUniqueColors(self->imported, self->importedColors, self->importColorMap);  
-               _smartFillEncodedPalette(self);
-               
-            }
-
+            _importTextureFromFile(self, found);
             nk_menu_close(ctx);
          }
 
@@ -1088,11 +1168,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
       //split panel
       struct nk_rect area = nk_window_get_content_region(ctx);
+      struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
+      float imgGroupWidth = ( area.w - optGroupWidth - (spacer * 2) - 20) / 2.0f;
 
-      const float palHeight = 100.0f;
-
-      nk_layout_row_begin(ctx, NK_DYNAMIC, area.h - palHeight - 10, 3);
-      nk_layout_row_push(ctx, 0.4f);
+      nk_layout_row_begin(ctx, NK_STATIC, area.h - palHeight - 8, 5);
+      nk_layout_row_push(ctx, imgGroupWidth + self->grp1Resize);
       if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
@@ -1111,14 +1191,26 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             struct nk_rect bounds;
             if (nk_widget(&bounds, ctx)) {
                bounds.w = bounds.h * ratio;
-               nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+               nk_draw_image(canvas, bounds, &img, nk_rgb(255, 255, 255));
             }
          }
 
          nk_group_end(ctx);
       }
 
-      nk_layout_row_push(ctx, 0.4f);
+      //spacing
+      nk_layout_row_push(ctx, spacer);
+      struct nk_rect wbounds = nk_widget_bounds(ctx);
+      const struct nk_input *in = &ctx->input;
+      if ((nk_input_is_mouse_hovering_rect(in, wbounds) ||
+         nk_input_is_mouse_prev_hovering_rect(in, wbounds)) &&
+         nk_input_is_mouse_down(in, NK_BUTTON_LEFT)) {
+         self->grp1Resize = NK_MAX(NK_MIN(self->grp1Resize + in->mouse.delta.x, imgGroupWidth - 10.0f), -imgGroupWidth + 10.0f);
+         self->grp2Resize = NK_MAX(NK_MIN(self->grp2Resize - in->mouse.delta.x, imgGroupWidth - 10.0f), -imgGroupWidth + 10.0f);
+      }
+      nk_spacing(ctx, 1);
+
+      nk_layout_row_push(ctx, imgGroupWidth + self->grp2Resize);
       if (nk_group_begin(ctx, "Encoding", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
@@ -1136,63 +1228,207 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             if (nk_widget(&bounds, ctx)) {
                bounds.w = bounds.h * ratio;
                bounds.w *= 1.16666f;
-               nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+               nk_draw_image(canvas, bounds, &img, nk_rgb(255, 255, 255));
+               nk_stroke_rect(canvas, bounds, 0, 1, nk_rgb(255, 255, 255));
+
+               if (self->optShowGrid) {
+                  int i = 1; 
+                  float tWidth = bounds.w / self->optXTileCount;
+                  float tHeight = bounds.h / self->optYTileCount;
+                  struct nk_color lineColor = nk_rgb(255, 255, 255);
+
+                  for (i = 1; i < self->optXTileCount; ++i) {
+                     nk_stroke_line(canvas, bounds.x + tWidth*i, bounds.y, bounds.x + tWidth*i, bounds.y + bounds.h, 1, lineColor);
+                  }
+
+                  for (i = 1; i < self->optYTileCount; ++i) {
+                     nk_stroke_line(canvas, bounds.x, bounds.y + tHeight*i, bounds.x + bounds.w, bounds.y + tHeight*i, 1, lineColor);
+                  }
+               }
             }       
          }
 
          nk_group_end(ctx);
       }      
 
-      nk_layout_row_push(ctx, 0.2f);
-      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {         
-         nk_layout_row_dynamic(ctx, 20, 1);
+      nk_layout_row_push(ctx, spacer);
+      nk_spacing(ctx, 1);
 
-         if (self->imported) {
-            int choice = nk_combo(ctx, ColorOptions, 3, self->colorOption, 20, nk_vec2(100, 100));
-            if (choice != self->colorOption) {
-               self->colorOption = choice;
-               vecResize(SNESColor)(self->encodePalette, _colorCountFromOption(self->colorOption), &(SNESColor){0});
-               _smartFillEncodedPalette(self);
+      nk_layout_row_push(ctx, optGroupWidth);
+      struct nk_panel *grpPnl = nk_window_get_panel(ctx);
+
+      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {  
+         if (nk_tree_push(ctx, NK_TREE_NODE, "Encoding", NK_MAXIMIZED)) {
+            if (self->imported) {
+               nk_layout_row_dynamic(ctx, 20, 1);
+               int choice = nk_combo(ctx, ColorOptions, 3, self->colorOption, 20, nk_vec2(100, 100));
+               if (choice != self->colorOption) {
+                  self->colorOption = choice;
+                  self->selectedEncodeColor = 0;
+                  vecResize(SNESColor)(self->encodePalette, _colorCountFromOption(self->colorOption), &(SNESColor){0});
+                  _smartFillEncodedPalette(self);
+               }
+               Int2 encSize = textureGetSize(self->encodeTest);
+               Int2 impSize = textureGetSize(self->imported);
+
+               boolean sizeUpdate = false;
+
+               struct nk_input *in = &ctx->input;
+
+               //x offset
+               choice = nk_propertyi(ctx, "X Offset", 0, self->optXOffset, impSize.x - 1, 1, 1.0f);
+               if (choice != self->optXOffset) {
+                  self->optXOffset = choice;
+                  sizeUpdate = true;
+               }
+
+
+               //y offset
+               choice = nk_propertyi(ctx, "Y Offset", 0, self->optYOffset, impSize.y - 1, 1, 1.0f);
+               if (choice != self->optYOffset) {
+                  self->optYOffset = choice;
+                  sizeUpdate = true;
+               }
+
+
+               //int maxTilesX = (impSize.x - self->optXOffset) / 8 + ((impSize.x - self->optXOffset) % 8 ? 1 : 0);
+               choice = nk_propertyi(ctx, "X Tiles", 0, self->optXTileCount, 100, 1, 1.0f);
+               if (choice != self->optXTileCount) {
+                  self->optXTileCount = choice;
+                  sizeUpdate = true;
+               }
+
+
+               //int maxTilesY = (impSize.y - self->optYOffset) / 8 + ((impSize.y - self->optYOffset) % 8 ? 1 : 0);
+               choice = nk_propertyi(ctx, "Y Tiles", 0, self->optYTileCount, 100, 1, 1.0f);
+               if (choice != self->optYTileCount) {
+                  self->optYTileCount = choice;
+                  sizeUpdate = true;
+               }
+
+               nk_checkbox_label(ctx, "Show Encode Grid", &self->optShowGrid);
+               nk_checkbox_label(ctx, "Show Color Guide", &self->optShowColorGuide);
+
+               if (nk_button_label(ctx, "Smart-Fill Palette")) {
+                  _smartFillEncodedPalette(self);
+               }
+
+               if (sizeUpdate) {
+                  _updateEncodeTestSize(self);
+               }
             }
-            Int2 impSize = textureGetSize(self->imported);
 
-            self->optXOffset = nk_propertyi(ctx, "X Offset", 0, self->optXOffset, impSize.x, 1, 1.0f);
-            self->optYOffset = nk_propertyi(ctx, "Y Offset", 0, self->optYOffset, impSize.y, 1, 1.0f);
-            self->optXTileCount = nk_propertyi(ctx, "X Tiles", 0, self->optXTileCount, impSize.x/8 + (impSize.x%8 ? 1 : 0), 1, 1.0f);
-            self->optYTileCount = nk_propertyi(ctx, "Y Tiles", 0, self->optYTileCount, impSize.y/8 + (impSize.y % 8 ? 1 : 0), 1, 1.0f);
+            nk_tree_pop(ctx);
+         }
+         
+         if (nk_tree_push(ctx, NK_TREE_NODE, "Edit Color", NK_MINIMIZED)) {
+            SNESColor *selected = vecAt(SNESColor)(self->encodePalette, self->selectedEncodeColor);
+
+            float layout[3] = { 15.0f, 60.0f, 60.0f };
+            nk_layout_row(ctx, NK_STATIC, 20.0f, 3, layout);
+
+            nk_spacing(ctx, 1);
+            nk_labelf(ctx, NK_TEXT_RIGHT, "Index %i", self->selectedEncodeColor);
+            nk_button_color(ctx, _colorToNKColor(snesColorConverTo24Bit(*selected)));
+
+            if (self->selectedEncodeColor > 0) {
+               nk_label(ctx, "R", NK_TEXT_LEFT);
+               selected->r = nk_slide_int(ctx, 0, selected->r, 31, 1);
+               selected->r = (nk_byte)nk_propertyi(ctx, "", 0, selected->r, 31, 1, 1);
+
+               nk_label(ctx, "G", NK_TEXT_LEFT);
+               selected->g = nk_slide_int(ctx, 0, selected->g, 31, 1);
+               selected->g = (nk_byte)nk_propertyi(ctx, "", 0, selected->g, 31, 1, 1);
+
+               nk_label(ctx, "B", NK_TEXT_LEFT);
+               selected->b = nk_slide_int(ctx, 0, selected->b, 31, 1);
+               selected->b = (nk_byte)nk_propertyi(ctx, "", 0, selected->b, 31, 1, 1);
+            }
+            else {
+               //readonly
+               nk_label(ctx, "R", NK_TEXT_LEFT);
+               nk_slide_int(ctx, 0, 0, 31, 1);
+               nk_propertyi(ctx, "", 0, 0, 31, 1, 1);
+
+               nk_label(ctx, "G", NK_TEXT_LEFT);
+               nk_slide_int(ctx, 0, 0, 31, 1);
+               nk_propertyi(ctx, "", 0, 0, 31, 1, 1);
+
+               nk_label(ctx, "B", NK_TEXT_LEFT);
+               nk_slide_int(ctx, 0, 0, 31, 1);
+               nk_propertyi(ctx, "", 0, 0, 31, 1, 1);
+            }
+
+            nk_tree_pop(ctx);
+         }
+         
+         if (nk_tree_push(ctx, NK_TREE_NODE, "Palette", NK_MINIMIZED)) {
+            struct nk_panel *pnl = nk_window_get_panel(ctx);
+            
+            nk_layout_row_dynamic(ctx, 500.0f, 1);
+            if (nk_group_begin(ctx, "palGroup", NK_WINDOW_BORDER)) {
+              nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT| NK_TEXT_ALIGN_MIDDLE);               
+               nk_layout_row_dynamic(ctx, 20, 1);
+
+               nk_button_label(ctx, "Paletes!");
+
+               nk_style_pop_flags(ctx);
+               nk_group_end(ctx);
+            }
+            nk_tree_pop(ctx);
          }
 
          nk_group_end(ctx);
       }
+      nk_layout_row_end(ctx);
 
-      struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
-      nk_layout_row_begin(ctx, NK_DYNAMIC, palHeight, 2);
-      nk_layout_row_push(ctx, 0.4f);
+      nk_layout_row_begin(ctx, NK_STATIC, palHeight, 5);
+      nk_layout_row_push(ctx, imgGroupWidth + self->grp1Resize);
       if (nk_group_begin(ctx, "Unique Colors", 0)) {
 
          if (self->imported) {
             struct nk_rect bounds;
             struct nk_panel *pnl = nk_window_get_panel(ctx);
 
-            float palWidth = 20.0f, palHeight = 20.0f;
+            float palWidth = 25.0f, palHeight = 25.0f;
 
             nk_layout_row_dynamic(ctx, palHeight, 1);
 
             int perRow = (int)(pnl->bounds.w / palWidth - 1);
 
             int rowSize = 0;
+            int cIdx = 0;
             vecForEach(ColorMapEntry, c, self->importedColors, {
                if (!rowSize) {
                   nk_widget(&bounds, ctx);
                   bounds.w = palWidth;
                   bounds.h = palHeight - 5;
                }
+               
+               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
+                  self->selectedColorLink = cIdx;
+               }
+
+               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_RIGHT, bounds)) {
+                  if (self->selectedEncodeColor > 0) {
+                     SNESColor *selCol = vecAt(SNESColor)(self->encodePalette, self->selectedEncodeColor);
+                     *selCol = c->color;
+                  }
+                  allowRightClickCancel = false;
+               }
+
                nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(c->color)));
+
+               if (cIdx == self->selectedColorLink) {
+                  nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
+               }
+
                bounds.x += palWidth;
                if (++rowSize >= perRow) {
                   rowSize = 0;
                }
+               ++cIdx;
             });
 
             Int2 impSize = textureGetSize(self->imported);
@@ -1201,21 +1437,23 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Size: %i x %i", impSize.x, impSize.y);
          }
          
-
          nk_group_end(ctx);
       }
+      
+      nk_layout_row_push(ctx, spacer);
+      nk_spacing(ctx, 1);
 
-      nk_layout_row_push(ctx, 0.4f);
-      if (nk_group_begin(ctx, "Encode Options", 0)) {
+      nk_layout_row_push(ctx, imgGroupWidth + self->grp2Resize);
+      if (nk_group_begin(ctx, "Encode Colors", 0)) {
          struct nk_rect bounds;
          struct nk_panel *pnl = nk_window_get_panel(ctx);
-         float palWidth = 20.0f, palHeight = 20.0f;
+         float palWidth = 25.0f, palHeight = 25.0f;
 
          nk_layout_row_dynamic(ctx, palHeight, 1);
 
          int perRow = (int)(pnl->bounds.w / palWidth - 1);
          int rowSize = 0;
-         boolean first = true;
+         int cIdx = 0;
          vecForEach(SNESColor, c, self->encodePalette, {
             if (!rowSize) {
                nk_widget(&bounds, ctx);
@@ -1223,10 +1461,9 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                bounds.h = palHeight - 5;
             }
 
-            if (first) {
+            if (cIdx == 0) {
                //draw the transparency square
                nk_fill_rect(canvas, bounds, 0, nk_rgb(255, 255, 255));
-               first = false;
                struct nk_rect halfBounds = bounds;
 
                halfBounds.w /= 2.0f;
@@ -1240,29 +1477,77 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             else {
                nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(*c)));
             }
+
+            if (cIdx == self->selectedEncodeColor) {
+               nk_stroke_rect(canvas, bounds, 3, 4, nk_rgb(255, 100, 100));
+            }
+
+            if (self->selectedColorLink >= 0) {
+               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, self->selectedColorLink);
+
+               if (entry->encodingIndex == cIdx) {
+                  nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
+               }
+
+               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
+                  entry->encodingIndex = cIdx;
+               }
+            }
+
+            
+
+            if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
+               self->selectedEncodeColor = cIdx;
+            }
+
+            
             
             bounds.x += palWidth;
             if (++rowSize >= perRow) {
                rowSize = 0;
             }
+
+            ++cIdx;
          });
 
          nk_group_end(ctx);
       }
 
-      nk_layout_row_push(ctx, 0.2f);
-      if (nk_group_begin(ctx, "Encode Options", 0)) {
-         struct nk_panel *pnl = nk_window_get_panel(ctx);
+      nk_layout_row_push(ctx, spacer);
+      nk_spacing(ctx, 1);
 
-         
+      nk_layout_row_push(ctx, optGroupWidth);
+      if (nk_group_begin(ctx, "saveLoad", 0)) {
+         static char text[9][64];
+         static int text_len[9];
 
+         float layout[] = { 0.6f, 0.4f };
+
+         nk_layout_row(ctx, NK_DYNAMIC, 20, 2, layout);
+         nk_edit_string(ctx, NK_EDIT_SIMPLE, text[0], &text_len[0], 64, nk_filter_ascii);
+         nk_button_label(ctx, "Palette");
+
+         nk_edit_string(ctx, NK_EDIT_SIMPLE, text[1], &text_len[1], 64, nk_filter_ascii);
+         nk_button_label(ctx, "Char Map");
 
          nk_group_end(ctx);
       }
 
       nk_layout_row_end(ctx);
+
+      if (allowRightClickCancel && nk_input_is_mouse_released(in, NK_BUTTON_RIGHT) && self->selectedColorLink >= 0) {
+         self->selectedColorLink = -1;
+      }
    }
+
+   
+
    nk_end(ctx);
+
+   //update flash timers
+   if (encTestLineTimer++ % 30 == 0) {
+      ++encTestLineCounter;
+   }
    /*
 
    
