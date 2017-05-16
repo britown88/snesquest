@@ -1061,6 +1061,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
                self->encodeTestPixels = checkedCalloc(1, texSize.x * texSize.y * sizeof(ColorRGBA));
                self->encodeTest = textureCreateCustom(texSize.x, texSize.y, RepeatType_Clamp, FilterType_Nearest);
+               self->optXOffset = 0;
+               self->optYOffset = 0;
+               self->optXTileCount = texSize.x / 8 + (texSize.x % 8 ? 1 : 0);
+               self->optYTileCount = texSize.y / 8 + (texSize.y % 8 ? 1 : 0);
 
                _getUniqueColors(self->imported, self->importedColors, self->importColorMap);  
                _smartFillEncodedPalette(self);
