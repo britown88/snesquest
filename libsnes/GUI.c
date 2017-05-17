@@ -503,6 +503,8 @@ typedef struct {
    int optShowTilePalettes;
 
    boolean paletteTileMode;
+   boolean paletteTileModeClick;
+   Int2 paletteTileModeClickStart;
 
    float grp1Resize, grp2Resize;
 
@@ -1290,17 +1292,48 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                struct nk_color lineColor = nk_rgb(0, 0, 255);
                int x, y;
 
+               if (self->paletteTileMode) {
+                  if (nk_input_is_mouse_hovering_rect(in, bounds)) {
+                     if (nk_input_is_mouse_down(in, NK_BUTTON_LEFT)) {
+                        if (!self->paletteTileModeClick) {
+                           self->paletteTileModeClick = true;
+                           self->paletteTileModeClickStart = (Int2) { in->mouse.pos.x, in->mouse.pos.y };
+                        }
+
+                        nk_stroke_rect(canvas, nk_rect(
+                           self->paletteTileModeClickStart.x, 
+                           self->paletteTileModeClickStart.y,
+                           in->mouse.pos.x - self->paletteTileModeClickStart.x,
+                           in->mouse.pos.y - self->paletteTileModeClickStart.y
+                           ), 0, 3, lineColor);
+                     }
+                     else if(self->paletteTileModeClick) {
+                        self->paletteTileModeClick = false;
+
+                        int xTile = (self->paletteTileModeClickStart.x - bounds.x) / tWidth;
+                        int yTile = (self->paletteTileModeClickStart.y - bounds.y) / tHeight;
+                        int xTileCount = (in->mouse.pos.x - self->paletteTileModeClickStart.x) / tWidth + 1;
+                        int yTileCount = (in->mouse.pos.y - self->paletteTileModeClickStart.y) / tHeight + 1;
+
+                        for (x = 0; x < xTileCount; ++x) {
+                           for (y = 0; y < yTileCount; ++y) {
+                              Int2 tile = { x + xTile, y + yTile };
+                              if (tile.x >= 0 && tile.x < self->optXTileCount && 
+                                 tile.y >= 0 && tile.y < self->optYTileCount) {
+                                 byte *palIndex = self->tilePaletteMap + (tile.y * self->optXTileCount + tile.x);
+                                 *palIndex = self->optCurrentPalette;
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+
                for (y = 0; y < self->optYTileCount; ++y) {
                   for (x = 0; x < self->optXTileCount; ++x) {
                      byte *palIndex = self->tilePaletteMap + (y * self->optXTileCount + x);
                      struct nk_rect tileBounds = nk_rect(bounds.x + tWidth*x, bounds.y + tHeight*y, tWidth, tHeight);
 
-                     if (self->paletteTileMode){
-                        if (nk_input_is_mouse_down(in, NK_BUTTON_LEFT) &&
-                           nk_input_is_mouse_hovering_rect(in, tileBounds)) {
-                           *palIndex = self->optCurrentPalette;
-                        }
-                     }
 
                      if (self->optShowTilePalettes && *palIndex == self->optCurrentPalette) {
                         nk_stroke_rect(canvas, tileBounds, 0, 3, lineColor);
@@ -1643,10 +1676,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
    nk_end(ctx);
 
-   //update flash timers
-   if (encTestLineTimer++ % 30 == 0) {
-      ++encTestLineCounter;
-   }
+   
    /*
 
    
@@ -1894,5 +1924,10 @@ void guiUpdate(GUI *self, AppData *data) {
    });
 
    vecDestroy(GUIWindowPtr)(remList);
+
+   //update flash timers
+   if (encTestLineTimer++ % 30 == 0) {
+      ++encTestLineCounter;
+   }
 }
 
