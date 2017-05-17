@@ -1,13 +1,23 @@
-table Palette{
+table PaletteOwners{
+   int characterMapId;
+
+   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+}
+
+table Palettes{
    SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   int paletteOwnerId;
    String name;
    int colorCount;
    Blob colors;
+
+   FOREIGN_KEY(paletteOwnerId, PaletteOwners.id, CASCADE);
 };
 
 table CharacterImportData{
-   SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
-   
+   PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   SELECT NOT_NULL int characterMapId;
+
    // in pixels...
    int width;
    int height;
@@ -22,9 +32,11 @@ table CharacterImportData{
 
    // ColorMapEntry*
    Blob colorMapping; 
+
+   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
 };
 
-table CharacterMap{
+table CharacterMaps{
    SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
    String name;
 
@@ -41,13 +53,8 @@ table CharacterMap{
    // width*height ints 0-3 for alternative palettes to use
    Blob tilePaletteMap;
 
-   // FK constraint for importdata db, contains the raw png input and editor data
-   int importDataId;
-
    // how many palettes did we encode with
    int encodePaletteCount;
-
-   FOREIGN_KEY(importId, CharacterImportData.id, RESTRICT);
 };
 
 table CharacterEncodePalette{
@@ -58,6 +65,6 @@ table CharacterEncodePalette{
    // 0-7
    int index;
 
-   FOREIGN_KEY(characterMapId, CharacterMap.id, CASCADE);
-   FOREIGN_KEY(paletteId, Palette.id, CASCADE);
+   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+   FOREIGN_KEY(paletteId, Palettes.id, CASCADE);
 };
