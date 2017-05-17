@@ -624,65 +624,74 @@ static void _updateEncodeTest(CharTool *self) {
 // fills encodePalette withe first colors it finds in the encodetest subimage
 // and links these to the imported color set
 static void _smartFillEncodedPalette(CharTool *self) {
-   int current = 1;
+   
    int x = 0, y = 0;
    Int2 encSize = textureGetSize(self->encodeTest);
    Int2 impSize = textureGetSize(self->imported);
 
-   int pIdx = self->optCurrentPalette;
+   int pIdx = 0;//self->optCurrentPalette;
+   for (pIdx = 0; pIdx < 4; ++pIdx) {
+      int current = 1;
 
+      //clear existing
+      size_t paletteSize = vecSize(SNESColor)(self->encodePalette[pIdx]);
+      vecClear(SNESColor)(self->encodePalette[pIdx]);
+      vecResize(SNESColor)(self->encodePalette[pIdx], paletteSize, &(SNESColor){0});
 
-   //clear existing
-   size_t paletteSize = vecSize(SNESColor)(self->encodePalette[pIdx]);
-   vecClear(SNESColor)(self->encodePalette[pIdx]);
-   vecResize(SNESColor)(self->encodePalette[pIdx], paletteSize, &(SNESColor){0});
+      //reset links
+      vecForEach(ColorMapEntry, entry, self->importedColors, {
+         entry->encodingIndex[pIdx] = -1;
+      });
 
-   //reset links
-   vecForEach(ColorMapEntry, entry, self->importedColors, {
-      entry->encodingIndex[pIdx] = -1;
-   });
+      for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8 && y < impSize.y; ++y) {
+         for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
+            int mapIdx = y * impSize.x + x;
+            int entryIndex = self->importColorMap[mapIdx];
 
-   for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8 && y < impSize.y; ++y) {
-      for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
-         int mapIdx = y * impSize.x + x;
-         int entryIndex = self->importColorMap[mapIdx];
+            int tileX = (x - self->optXOffset) / 8;
+            int tileY = (y - self->optYOffset) / 8;
+            int tileIdx = tileY * self->optXTileCount + tileX;
+            int tilePalette = self->tilePaletteMap[tileIdx];
 
-         int tileX = (x - self->optXOffset) / 8;
-         int tileY = (y - self->optYOffset) / 8;
-         int tileIdx = tileY * self->optXTileCount + tileX;
-         int tilePalette = self->tilePaletteMap[tileIdx];
+            if (tilePalette != pIdx) {
+               continue;
+            }
 
-         if (tilePalette != pIdx) {
-            continue;
-         }
+            if (entryIndex >= 0) {
+               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
+               //now fit it onto the palette and link it up
 
-         if (entryIndex >= 0) {
-            ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
-            //now fit it onto the palette and link it up
+               int p = 1;
+               for (p = 1; p < current; ++p) {
+                  SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette[pIdx], p);
+                  if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
+                     //already found
+                     break;
+                  }
+               }
 
-            int p = 1;
-            for (p = 1; p < current; ++p) {
-               SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette[pIdx], p);
-               if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
-                  //already found
+               if (p == current) {
+                  SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette[pIdx], current);
+                  *currentColor = entry->color;
+                  entry->encodingIndex[pIdx] = current;
+                  ++current;
+               }
+
+               if (current >= paletteSize) {
                   break;
                }
             }
+         }
 
-            if (p == current) {
-               SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette[pIdx], current);
-               *currentColor = entry->color;
-               entry->encodingIndex[pIdx] = current;
-               ++current;
-            }
-
-            if (current >= paletteSize) {
-               return;
-            }
+         if (current >= paletteSize) {
+            break;
          }
       }
+
    }
 
+
+   
 }
 
 static void _updateEncodeTestSize(CharTool *self) {
@@ -1382,9 +1391,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   _smartFillEncodedPalette(self);
                }
 
-               if (nk_button_label(ctx, "Tile Palette Mode")) {
-                  self->optShowTilePalettes = true;
-                  self->paletteTileMode = true;
+               
+
+               if(nk_selectable_label(ctx, "Tile Palette Mode", NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE, &self->paletteTileMode)) {
+                  self->optShowTilePalettes =  self->paletteTileMode;
                }
 
                nk_label(ctx, "Current Palette", NK_TEXT_ALIGN_LEFT);
@@ -1495,7 +1505,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
                if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_RIGHT, bounds)) {
                   if (self->selectedEncodeColor > 0) {
-                     SNESColor *selCol = vecAt(SNESColor)(self->encodePalette[0], self->selectedEncodeColor);
+                     SNESColor *selCol = vecAt(SNESColor)(self->encodePalette[self->optCurrentPalette], self->selectedEncodeColor);
                      *selCol = c->color;
                   }
                   allowRightClickCancel = false;
@@ -1569,12 +1579,12 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             if (self->selectedColorLink >= 0) {
                ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, self->selectedColorLink);
 
-               if (entry->encodingIndex[0] == cIdx) {
+               if (entry->encodingIndex[self->optCurrentPalette] == cIdx) {
                   nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
                }
 
                if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
-                  entry->encodingIndex[0] = cIdx;
+                  entry->encodingIndex[self->optCurrentPalette] = cIdx;
                }
             }
 
