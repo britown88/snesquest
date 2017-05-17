@@ -5,7 +5,7 @@
    Which contains 7 table(s).
 ***********************************************************************/
 
-#include "D:\dev\snesquest\libsnes/DBAssets.h"
+#include "D:\minwork\snesquest\libsnes/DBAssets.h"
 #include "DB.h"
 #include "libutils/CheckedMemory.h"
 #include "sqlite/sqlite3.h"

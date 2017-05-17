@@ -162,10 +162,11 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
                byte palIndex = 0;
 
                //construct the palette index from the bitplanes
-               palIndex |= (t->character.tiles[0].rows[objY].planes[0] & (1 << objX)) >> objX;
-               palIndex |= ((t->character.tiles[0].rows[objY].planes[1] & (1 << objX)) >> objX) << 1;
-               palIndex |= ((t->character.tiles[1].rows[objY].planes[0] & (1 << objX)) >> objX) << 2;
-               palIndex |= ((t->character.tiles[1].rows[objY].planes[1] & (1 << objX)) >> objX) << 3;
+               palIndex = 
+                  ((t->character.tiles[0].rows[objY].planes[0] & (1 << objX)) >> objX) |
+                  (((t->character.tiles[0].rows[objY].planes[1] & (1 << objX)) >> objX) << 1) |
+                  (((t->character.tiles[1].rows[objY].planes[0] & (1 << objX)) >> objX) << 2) |
+                  (((t->character.tiles[1].rows[objY].planes[1] & (1 << objX)) >> objX) << 3);
 
                if (palIndex && t->priority >= objPri) {
                   objPalIndex = palIndex;

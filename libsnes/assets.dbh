@@ -1,48 +1,63 @@
-table Image{
-   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
-   Blob image;
-};
-
 table Palette{
-   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
-   Blob palette;
+   SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   String name;
+   int colorCount;
+   Blob colors;
 };
 
-table Sprite{
-   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
+table CharacterImportData{
+   SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   
+   // in pixels...
    int width;
    int height;
+
+   // 32-bit RGBA
+   Blob pixelData;
+
+   int offsetX;
+   int offsetY;
+   int tileCountX;
+   int tileCountY;
+
+   // ColorMapEntry*
+   Blob colorMapping; 
 };
 
-table SpriteFrame{
-   PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
-   SELECT String sprite;
-   String image;
+table CharacterMap{
+   SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   String name;
+
+   // width/height are in terms of 8x8 tiles
+   int width;
+   int height;
+
+   // 4, 16 or 256
+   int colorCount;
+    
+   // bitplaned ppu format
+   Blob data;
+
+   // width*height ints 0-3 for alternative palettes to use
+   Blob tilePaletteMap;
+
+   // FK constraint for importdata db, contains the raw png input and editor data
+   int importDataId;
+
+   // how many palettes did we encode with
+   int encodePaletteCount;
+
+   FOREIGN_KEY(importId, CharacterImportData.id, RESTRICT);
+};
+
+table CharacterEncodePalette{
+   SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
+   SELECT int characterMapId;
+   int paletteId;
+
+   // 0-7
    int index;
-   int imgX;
-   int imgY;
-   
+
+   FOREIGN_KEY(characterMapId, CharacterMap.id, CASCADE);
+   FOREIGN_KEY(paletteId, Palette.id, CASCADE);
 };
-
-table TileSchema{
-   PRIMARY_KEY AUTOINCREMENT UNIQUE int id;
-   SELECT String set;
-   String sprite;
-   boolean lit;
-   int radius;
-   int centerLevel;
-   int fadeWidth;
-   boolean occlusion;
-};
-
-table LuaScript{
-   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String module;
-   String script;
-};
-
-table Map{
-   SELECT PRIMARY_KEY UNIQUE REPLACE_ON_CONFLICT String id;
-   Blob map;
-};
-
-

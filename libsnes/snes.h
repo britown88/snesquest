@@ -168,15 +168,29 @@ typedef struct {
       // a simple organization of vram for mode 1 is 4 tilemaps for each of bg1 and 2
       // followed by a full 1024-tile charmap and then the two obj charmaps
       // the bg3 tmap lives in the last 2kb of the big bg charmap
+      // the 4-color characters for bg3 can be stored in 32-tile rows starting at any 8kb step
+      // pretty simple to encode this into the beginning or middle of the big bgcmap
       // bgCMap has room for 960 tiles
       struct {
+
+         //chip 1, 32kb
          TileMap bg1TMaps[4];
          TileMap bg2TMaps[4];
-         Char16 bgCMap[16 * 60];//64 rows minus last 4 for the bg3 tmap
-         TileMap bg3TMap;
+
          struct {
             Char16 chars[16 * 16];
          }objCMaps[2];
+
+
+         //chip 2, 32kb
+
+         //the baseAdr for all 3 BGs is offsetOf(bgCMap)
+         // but for bg1 and 2, skip the first 64
+         struct {
+            Char4 color4s[32 * 4]; //256 4-color characters to use with BG3
+            Char16 color16s[16 * 56]; //64 rows minus 4 for bg3 chars and 4 at end for the bg3 tmap.  Starting char here would be Addr+64
+         } bgCMap;         
+         TileMap bg3TMap;         
       } mode1;
 
       // in mode 7, half of vram is taken over to  have a 128x128 tilemap (the 'playing field') next to 256 8x8 characters
