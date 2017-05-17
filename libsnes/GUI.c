@@ -575,7 +575,7 @@ static void _updateEncodeTest(CharTool *self) {
          ColorRGBA c = { 0 };
 
          //skip poitential pixels outside the imported image
-         if (y < impSize.y && x < impSize.x) {
+         if ( y >= 0 && x >= 0 && y < impSize.y && x < impSize.x) {
             int mapIdx = y * impSize.x + x;
             int colorIndex = self->importColorMap[mapIdx];
 
@@ -589,7 +589,7 @@ static void _updateEncodeTest(CharTool *self) {
                ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
                boolean selected = false;
                if (colorIndex == self->selectedColorLink) {
-                  if (encTestLineCounter % 2 && self->optShowColorGuide) {
+                  if (tilePalette == self->optCurrentPalette && encTestLineCounter % 2 && self->optShowColorGuide) {
                      c = (ColorRGBA) { 0, 255, 0, 255 };
                      selected = true;
                   }
@@ -647,6 +647,10 @@ static void _smartFillEncodedPalette(CharTool *self) {
          for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
             int mapIdx = y * impSize.x + x;
             int entryIndex = self->importColorMap[mapIdx];
+
+            if (y < 0 || x < 0) {
+               continue;
+            }
 
             int tileX = (x - self->optXOffset) / 8;
             int tileY = (y - self->optYOffset) / 8;
@@ -1354,7 +1358,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                struct nk_input *in = &ctx->input;
 
                //x offset
-               choice = nk_propertyi(ctx, "X Offset", 0, self->optXOffset, impSize.x - 1, 1, 1.0f);
+               choice = nk_propertyi(ctx, "X Offset", -7, self->optXOffset, impSize.x - 1, 1, 1.0f);
                if (choice != self->optXOffset) {
                   self->optXOffset = choice;
                   sizeUpdate = true;
@@ -1362,7 +1366,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
 
                //y offset
-               choice = nk_propertyi(ctx, "Y Offset", 0, self->optYOffset, impSize.y - 1, 1, 1.0f);
+               choice = nk_propertyi(ctx, "Y Offset", -7, self->optYOffset, impSize.y - 1, 1, 1.0f);
                if (choice != self->optYOffset) {
                   self->optYOffset = choice;
                   sizeUpdate = true;
