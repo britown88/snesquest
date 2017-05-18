@@ -29,6 +29,7 @@
 #include "FrameProfiler.h"
 #include "EncodedAssets.h"
 
+static const char *LogSpudWin = "LogSpud";
 static struct nk_color _colorToNKColor(ColorRGBA in) { return nk_rgb(in.r, in.g, in.b); }
 
 typedef struct {
@@ -776,7 +777,7 @@ void _createWindows(GUI *self) {
    self->taskBar = guiWindowCreate(self, "Taskbar");
    self->taskBar->update = &_taskBarUpdate;
 
-   self->logSpud = guiWindowCreate(self, "LogSpud");
+   self->logSpud = guiWindowCreate(self, LogSpudWin);
    self->logSpud->update = &_logSpudUpdate;
 
    self->dialogs = vecCreate(GUIWindowPtr)(&_guiWindowPtrDestroy);
@@ -987,9 +988,9 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
             nk_window_set_focus(ctx, "Overview");
          }
          if (nk_button_label(ctx, "Test Logging")) {
-            LOG("Testing", LOG_INFO, "WHat is %s", "going on");
-            LOG("Testing", LOG_WARN, "WHat is %s", "going on");
-            LOG("Testing", LOG_ERR, "WHat is %s", "going on");
+            LOG("GUI", LOG_INFO, "Here's some info");
+            LOG("GUI", LOG_WARN, "Hey you shhould take a look at this");
+            LOG("GUI", LOG_ERR, "Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck ");
          }
 
 
@@ -1093,8 +1094,18 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
 
       }
       if (nk_button_image(ctx, nk_image_id((int)textureGetGLHandle(spud)))) {
-         nk_window_show(ctx, "LogSpud", NK_SHOWN);
-         nk_window_set_focus(ctx, "LogSpud");
+
+         
+         if (nk_window_is_hidden(ctx, LogSpudWin)) {
+            nk_window_show(ctx, LogSpudWin, NK_SHOWN);
+            nk_window_set_focus(ctx, LogSpudWin);
+         } 
+         else{
+            
+
+            nk_window_show(ctx, LogSpudWin, NK_HIDDEN);
+            
+         }
       }
 
       nk_layout_row_push(ctx, 0.75f);
@@ -1154,10 +1165,7 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
    Int2 winSize = data->window->nativeResolution;
    static const Int2 dlgSize = { 400, 600 };
 
-   struct nk_rect winRect = nk_rect(
-      (winSize.x - dlgSize.x) / 2.0f,
-      (winSize.y - dlgSize.y) / 2.0f,
-      (float)dlgSize.x, (float)dlgSize.y);
+   struct nk_rect winRect = nk_rect(0, 0, (float)dlgSize.x, (float)dlgSize.y);
 
    nk_flags winFlags = 
       NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE |
@@ -1174,7 +1182,26 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
    {
       struct nk_panel *pnl = nk_window_get_panel(ctx);
 
-      nk_layout_row_dynamic(ctx, pnl->bounds.h - 10, 1);
+      //Int2 winSize = data->window->nativeResolution;
+      //struct nk_rect r = nk_rect(
+      //   winSize.x - OptionsWidth - 400,
+      //   0, 400, winSize.y - TaskBarHeight
+      //   );
+      //nk_window_set_size(ctx, nk_vec2(r.w, r.h));
+      //nk_window_set_position(ctx, nk_vec2(r.x, r.y));
+
+
+
+      static int showInfo = 1;
+      static int showWarn = 1;
+      static int showError = 1;
+
+      nk_layout_row_dynamic(ctx, 20.0f, 3);
+      nk_selectable_label(ctx, "Info", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showInfo);
+      nk_selectable_label(ctx, "Warn", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showWarn);
+      nk_selectable_label(ctx, "Error", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showError);
+
+      nk_layout_row_dynamic(ctx, pnl->bounds.h - 40, 1);
       if (nk_group_begin(ctx, "loggrp", NK_WINDOW_BORDER)) {
          static size_t logCount = 0;
 
@@ -1185,9 +1212,9 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
          vecForEach(LogSpudEntry, e, log, {
             struct nk_color c = { 0 };
             switch (e->level) {
-            case LOG_INFO: c = nk_rgb(75, 88, 255); break;
-            case LOG_WARN: c = nk_rgb(255, 242, 135); break;
-            case LOG_ERR: c = nk_rgb(219, 43, 60); break;
+            case LOG_INFO: c = nk_rgb(75, 88, 255); if (!showInfo) { continue; } break;
+            case LOG_WARN: c = nk_rgb(255, 242, 135); if (!showWarn) { continue; } break;
+            case LOG_ERR: c = nk_rgb(219, 43, 60); if (!showError) { continue; } break;
             }
 
             nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, c, "%s: %s", e->tag, c_str(e->msg));
@@ -2012,4 +2039,5 @@ void guiUpdate(GUI *self, AppData *data) {
       ++encTestLineCounter;
    }
 }
+
 
