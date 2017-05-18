@@ -1,8 +1,11 @@
 table PaletteOwners{
+   PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
    int characterMapId;
-
-   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
-}
+   
+   constraints{
+      FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+   };
+};
 
 table Palettes{
    SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
@@ -11,7 +14,9 @@ table Palettes{
    int colorCount;
    Blob colors;
 
-   FOREIGN_KEY(paletteOwnerId, PaletteOwners.id, CASCADE);
+   constraints{
+      FOREIGN_KEY(paletteOwnerId, PaletteOwners.id, CASCADE);
+   };
 };
 
 table CharacterImportData{
@@ -33,7 +38,9 @@ table CharacterImportData{
    // ColorMapEntry*
    Blob colorMapping; 
 
-   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+   constraints{
+      FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+   };
 };
 
 table CharacterMaps{
@@ -65,6 +72,8 @@ table CharacterEncodePalette{
    // 0-7
    int index;
 
-   FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
-   FOREIGN_KEY(paletteId, Palettes.id, CASCADE);
+   constraints{
+      FOREIGN_KEY(characterMapId, CharacterMaps.id, CASCADE);
+      FOREIGN_KEY(paletteId, Palettes.id, CASCADE);
+   };
 };

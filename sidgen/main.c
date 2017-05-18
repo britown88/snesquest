@@ -7,8 +7,7 @@
 #include "xxhash.h"
 #include <stdio.h>
 
-#include "Tools.h"
-#include "Parser.h"
+#include "snesgen/Parser.h"
 
 
 typedef struct {
@@ -142,4 +141,19 @@ void runSIDProcessing(const char *dir) {
    _processDirectorySTRING_ID(&sid, dir);
 
    htDestroy(SIDEntry)(sid.entries);
+}
+
+static void _showHelp() {
+   printf("usage: sidgen [codeDir]\n");
+}
+
+int main(int argc, char *argv[]) {
+   if (argc <= 2) {
+      _showHelp();
+      return;
+   }
+
+   runSIDProcessing(argv[2]);
+
+   printMemoryLeaks();
 }

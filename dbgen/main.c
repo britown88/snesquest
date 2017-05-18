@@ -1,5 +1,4 @@
-#include "Parser.h"
-#include "Tools.h"
+#include "snesgen/Parser.h"
 #include "libutils/Defs.h"
 #include "libutils/CheckedMemory.h"
 #include "libutils/BitBuffer.h"
@@ -8,11 +7,29 @@
 #include <stdio.h>
 
 typedef enum {
+   CONSTRAINT_NO_ACTION = 0,
+   CONSTRAINT_RESTRICT,
+   CONSTRAINT_SET_NULL,
+   CONSTRAINT_SET_DEFAULT,
+   CONSTRAINT_CASCADE,
+   CONSTRAINT_COUNT
+}ConstraintBehavior;
+
+static const char *ConstraintBehaviorStrings[] = {
+   "NO_ACTION",
+   "RESTRICT",
+   "SET_NULL",
+   "SET_DEFAULT",
+   "CASCADE"
+};
+
+typedef enum {
    MODIFIER_PRIMARY_KEY = 0,
    MODIFIER_UNIQUE,
    MODIFIER_REPLACE_ON_CONFLICT,
    MODIFIER_AUTOINCREMENT,
    MODIFIER_SELECT,
+   MODIFIER_NOT_NULL,
    MODIFIER_COUNT
 }Modifier;
 
@@ -23,7 +40,8 @@ static const char *ModifierStrings[] = {
    "UNIQUE",
    "REPLACE_ON_CONFLICT",
    "AUTOINCREMENT",
-   "SELECT"
+   "SELECT",
+   "NOT_NULL"
 };
 
 typedef enum {
@@ -63,6 +81,20 @@ static const char *MemberTypeSQLStrings[] = {
 
 
 typedef struct {
+   String *member, *parentTable, *parentMember;
+   ConstraintBehavior behavior;
+}DBConstraint;
+
+void DBConstraintDestroy(DBConstraint *self) {
+   stringDestroy(self->member);
+   stringDestroy(self->parentTable);
+   stringDestroy(self->parentMember);
+}
+
+#define VectorT DBConstraint
+#include "libutils/Vector_Create.h"
+
+typedef struct {
    int mods;//bitfield
    MemberType type;
    String *name;
@@ -78,10 +110,12 @@ void DBMemberDestroy(DBMember *self) {
 typedef struct {
    String *name;
    vec(DBMember) *members;
+   vec(DBConstraint) *constraints;
 }DBStruct;
 
 void DBStructDestroy(DBStruct *self) {
    vecDestroy(DBMember)(self->members);
+   vecDestroy(DBConstraint)(self->constraints);
    stringDestroy(self->name);
 }
 
@@ -119,6 +153,19 @@ MemberType lexerAcceptType(DBGenLexer *self) {
 
    return TYPE_COUNT;
 }
+ConstraintBehavior lexerAcceptConstraintBehavior(DBGenLexer *self) {
+   int i = 0;
+
+   for (i = 0; i < CONSTRAINT_COUNT; ++i) {
+      if (strmAcceptIdentifierRaw(STRM, ConstraintBehaviorStrings[i])) {
+         return i;
+      }
+   }
+
+   return CONSTRAINT_COUNT;
+}
+
+
 Modifier lexerAcceptModifier(DBGenLexer *self) {
    int i = 0;
 
@@ -131,6 +178,85 @@ Modifier lexerAcceptModifier(DBGenLexer *self) {
    }
 
    return MODIFIER_COUNT;
+}
+DBConstraint lexerAcceptConstraint(DBGenLexer *self) {
+   static DBConstraint NullOut = { 0 };
+   DBConstraint newConstraint = { 0 };
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptIdentifierRaw(STRM, "FOREIGN_KEY")) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, '(')) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   Token *member = strmAcceptIdentifierAny(STRM);
+   if (!member) {
+      return NullOut;
+   }
+   newConstraint.member = stringCopy(member->raw);
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, ',')) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   Token *parentTable = strmAcceptIdentifierAny(STRM);
+   if (!parentTable) {
+      return NullOut;
+   }
+   newConstraint.parentTable = stringCopy(parentTable->raw);
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, '.')) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   Token *parentMember = strmAcceptIdentifierAny(STRM);
+   if (!parentMember) {
+      return NullOut;
+   }
+   newConstraint.parentMember = stringCopy(parentMember->raw);
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, ',')) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   newConstraint.behavior = lexerAcceptConstraintBehavior(self);
+   if (newConstraint.behavior == CONSTRAINT_COUNT) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, ')')) {
+      return NullOut;
+   }
+
+   SKIP_SKIPPABLES(STRM);
+
+   if (!strmAcceptOperator(STRM, ';')) {
+      return NullOut;
+   }
+
+   return newConstraint;
 }
 DBMember lexerAcceptMember(DBGenLexer *self) {
    static DBMember NullOut = { .name = NULL };
@@ -170,11 +296,19 @@ DBMember lexerAcceptMember(DBGenLexer *self) {
 
    return newMember;
 }
+
+static void _destroyDBMember(DBStruct *self) {
+   stringDestroy(self->name);
+   vecDestroy(DBMember)(self->members);
+   vecDestroy(DBConstraint)(self->constraints);
+}
+
 DBStruct lexerAcceptStruct(DBGenLexer *self) {
    static DBStruct NullOut = { .name = NULL };
    static const char *svStruct = "table";
    DBMember newMember = { 0 };
    DBStruct newStruct = { 0 };
+   DBConstraint newConstraint = { 0 };
 
    SKIP_SKIPPABLES(STRM);
 
@@ -208,15 +342,46 @@ DBStruct lexerAcceptStruct(DBGenLexer *self) {
       SKIP_SKIPPABLES(STRM);
    }
 
+   SKIP_SKIPPABLES(STRM);
+
+   newStruct.constraints = vecCreate(DBConstraint)(&DBConstraintDestroy);
+   if (strmAcceptIdentifierRaw(STRM, "constraints")) {
+      SKIP_SKIPPABLES(STRM);
+      if (!strmAcceptOperator(STRM, '{')) {
+         
+         return NullOut;
+      }
+
+      while ((newConstraint = lexerAcceptConstraint(self)).member) {
+         vecPushBack(DBConstraint)(newStruct.constraints, &newConstraint);
+         SKIP_SKIPPABLES(STRM);
+      }
+
+      SKIP_SKIPPABLES(STRM);
+      if (!strmAcceptOperator(STRM, '}')) {
+         _destroyDBMember(&newStruct);
+         return NullOut;
+      }
+
+      SKIP_SKIPPABLES(STRM);
+      if (!strmAcceptOperator(STRM, ';')) {
+         _destroyDBMember(&newStruct);
+         return NullOut;
+      }
+
+      SKIP_SKIPPABLES(STRM);
+   }
+
+
    if (!strmAcceptOperator(STRM, '}')) {
-      vecDestroy(DBMember)(newStruct.members);
+      _destroyDBMember(&newStruct);
       return NullOut;
    }
 
    SKIP_SKIPPABLES(STRM);
 
    if (!strmAcceptOperator(STRM, ';')) {
-      vecDestroy(DBMember)(newStruct.members);
+      _destroyDBMember(&newStruct);
       return NullOut;
    }
 
@@ -249,7 +414,6 @@ void headerWriteHeader(FILE *f, FileData *data) {
       "#include \"libutils/Defs.h\"\n"
       "#include \"libutils/String.h\"\n\n"
       "typedef struct sqlite3_stmt sqlite3_stmt;\n"
-      "typedef struct lua_State lua_State;\n"
       "typedef struct DB_%s DB_%s;\n"
 
       "\n",
@@ -530,8 +694,26 @@ void sourceWriteCreateTable(FILE *f, FileData *fd, DBStruct *strct) {
       if (member->mods&MOD(MODIFIER_AUTOINCREMENT)) { fprintf(f, " AUTOINCREMENT"); }
       if (member->mods&MOD(MODIFIER_UNIQUE)) { fprintf(f, " UNIQUE"); }
       if (member->mods&MOD(MODIFIER_REPLACE_ON_CONFLICT)) { fprintf(f, " ON CONFLICT REPLACE"); }
+      if (member->mods&MOD(MODIFIER_NOT_NULL)) { fprintf(f, " NOT NULL"); }
 
    });
+
+   vecForEach(DBConstraint, constraint, strct->constraints, {
+      fprintf(f, ", FOREIGN KEY (\\\"%s\\\") REFERENCES \\\"%s\\\" (\\\"%s\\\") ON DELETE ",
+                                    c_str(constraint->member), c_str(constraint->parentTable), c_str(constraint->parentMember));
+
+      switch (constraint->behavior) {
+      case CONSTRAINT_NO_ACTION: fprintf(f, "NO ACTION)"); break;
+      case CONSTRAINT_RESTRICT: fprintf(f, "RESTRICT)"); break;
+      case CONSTRAINT_SET_NULL: fprintf(f, "SET NULL)"); break;
+      case CONSTRAINT_SET_DEFAULT: fprintf(f, "SET DEFAULT)"); break;
+      case CONSTRAINT_CASCADE: fprintf(f, "CASCADE)"); break;
+
+      }
+      
+
+   });
+
    fprintf(f, ");\";\n");
 
    fprintf(f,
@@ -1015,7 +1197,7 @@ static void _generateFiles(const char *file, DBGenLexer *lexer) {
       "*    %s\n"
       "*    %s\n"
       ,
-      c_str(data.outputh), 
+      c_str(data.outputh),
       c_str(data.outputc));
 
    data.structs = lexer->structs;
@@ -1038,7 +1220,7 @@ void runDBGen(const char *file) {
    printf(
       "***********************************\n"
       "* DBGen: SQLite API Generator\n"
-      "* Processing dbh file: %s\n", file);
+      "* Processing dbh file: %s\n\n", file);
 
    byte *buff = readFullFile(file, &fSize);
    Tokenizer *tokens = tokenizerCreate((StringStream) { .pos = buff, .last = buff + fSize });
@@ -1053,4 +1235,19 @@ void runDBGen(const char *file) {
 
    dbGenLexerDestroy(lexer);
    tokenizerDestroy(tokens);
+}
+
+static void _showHelp() {
+   printf("Usage: dbgen [dbh file]\n");
+}
+
+
+int main(int argc, char *argv[]) {
+   if (argc <= 1) {
+      _showHelp();
+      return;
+   }
+
+   runDBGen(argv[1]);
+   printMemoryLeaks();
 }

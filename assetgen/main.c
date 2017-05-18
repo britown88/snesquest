@@ -3,8 +3,7 @@
 
 #include <stdio.h>
 
-#include "Tools.h"
-#include "Parser.h"
+#include "snesgen\Parser.h"
 
 static const char *EncodeIdentifier = "ENCODE_ASSET";
 
@@ -67,9 +66,9 @@ void runAssetGen(const char *file) {
    byte *buff = readFullFile(file, &fSize);
    Tokenizer *tokens = tokenizerCreate((StringStream) { .pos = buff, .last = buff + fSize });
    tokenizerAcceptFile(tokens);
-   
+
    checkedFree(buff);
-   
+
    TokenStream tkstrm = { .pos = vecBegin(Token)(tokens->tokens),.last = vecEnd(Token)(tokens->tokens) };
    TokenStream *strm = &tkstrm;
 
@@ -115,7 +114,7 @@ void runAssetGen(const char *file) {
             if (outTracker != byteOutput) {
                stringConcat(out, byteOutput);
             }
-            
+
             stringConcat(out, "0x00)");
 
             checkedFree(byteOutput);
@@ -126,7 +125,7 @@ void runAssetGen(const char *file) {
             printf("ERROR: Unable to read %s for asset encoding!\n", fName);
             strm->pos = start;
          }
-      }      
+      }
 
       stringConcat(out, c_str(strmPeek(strm)->raw));
       strmNext(strm);
@@ -138,4 +137,19 @@ void runAssetGen(const char *file) {
 
    stringDestroy(out);
    tokenizerDestroy(tokens);
+}
+
+static void _showHelp() {
+   printf("Usage: assetgen [file]\n");
+}
+
+
+int main(int argc, char *argv[]) {
+   if (argc <= 1) {
+      _showHelp();
+      return;
+   }
+
+   runAssetGen(argv[1]);
+   printMemoryLeaks();
 }
