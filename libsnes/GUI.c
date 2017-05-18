@@ -414,6 +414,7 @@ void guiRender(GUI *self, Renderer *r) {
 #pragma endregion
 
 static const float OptionsWidth = 256.0f;
+static const float LogSpudWidth = 300.0f;
 static const float TaskBarHeight = 40.0f;
 
 static void _viewerUpdate(GUIWindow *self, AppData *data);
@@ -816,12 +817,13 @@ void _viewerUpdate(GUIWindow *self, AppData *data) {
 
       if (nk_window_has_focus(ctx) && nk_input_is_mouse_click_in_rect(&ctx->input, NK_BUTTON_RIGHT, viewerRect)) {
 
-         if (viewerRect.w == windowSize.x - optionsSize.x) {
-            viewerRect.w /= 2.0;
+
+         viewerRect.w = windowSize.x - optionsSize.x; 
+
+         if (!nk_window_is_hidden(ctx, LogSpudWin)) {
+            viewerRect.w -= LogSpudWidth;
          }
-         else {
-            viewerRect.w = windowSize.x - optionsSize.x;            
-         }
+
 
          viewerRect.x = 0;
          viewerRect.y = 0;
@@ -989,7 +991,9 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
          }
          if (nk_button_label(ctx, "Test Logging")) {
             LOG("GUI", LOG_INFO, "Here's some info");
+            LOG("GUI", LOG_INFOBLUE, "Here's some info that is blue");
             LOG("GUI", LOG_WARN, "Hey you shhould take a look at this");
+            LOG("GUI", LOG_SUCCESS, "Hey it worked");
             LOG("GUI", LOG_ERR, "Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck ");
          }
 
@@ -1162,10 +1166,13 @@ void _taskBarUpdate(GUIWindow *self, AppData *data) {
 }
 void _logSpudUpdate(GUIWindow *self, AppData *data) {
    struct nk_context *ctx = &self->parent->ctx;
-   Int2 winSize = data->window->nativeResolution;
+   Int2 winSize = data->window->windowResolution;
    static const Int2 dlgSize = { 400, 600 };
 
-   struct nk_rect winRect = nk_rect(0, 0, (float)dlgSize.x, (float)dlgSize.y);
+   struct nk_rect winRect = nk_rect(
+      winSize.x - OptionsWidth - LogSpudWidth,
+      0, LogSpudWidth, winSize.y - TaskBarHeight
+   );
 
    nk_flags winFlags = 
       NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE |
@@ -1182,28 +1189,32 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
    {
       struct nk_panel *pnl = nk_window_get_panel(ctx);
 
-      //Int2 winSize = data->window->nativeResolution;
-      //struct nk_rect r = nk_rect(
-      //   winSize.x - OptionsWidth - 400,
-      //   0, 400, winSize.y - TaskBarHeight
-      //   );
-      //nk_window_set_size(ctx, nk_vec2(r.w, r.h));
-      //nk_window_set_position(ctx, nk_vec2(r.x, r.y));
+      if (nk_input_is_mouse_click_in_rect(&ctx->input, NK_BUTTON_RIGHT, pnl->bounds)) {
+         struct nk_rect r = nk_rect(
+            winSize.x - OptionsWidth - LogSpudWidth,
+            0, LogSpudWidth, winSize.y - TaskBarHeight
+         );
+         nk_window_set_size(ctx, nk_vec2(r.w, r.h));
+         nk_window_set_position(ctx, nk_vec2(r.x, r.y));
+      }
 
 
 
       static int showInfo = 1;
       static int showWarn = 1;
+      static int showSuccess = 1;
       static int showError = 1;
 
-      nk_layout_row_dynamic(ctx, 20.0f, 3);
+      nk_layout_row_dynamic(ctx, 20.0f, 4);
       nk_selectable_label(ctx, "Info", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showInfo);
       nk_selectable_label(ctx, "Warn", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showWarn);
+      nk_selectable_label(ctx, "Success", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showSuccess);
       nk_selectable_label(ctx, "Error", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showError);
 
       nk_layout_row_dynamic(ctx, pnl->bounds.h - 40, 1);
       if (nk_group_begin(ctx, "loggrp", NK_WINDOW_BORDER)) {
          static size_t logCount = 0;
+         
 
          nk_layout_row_dynamic(ctx, 15, 1);
          vec(LogSpudEntry) *log = logSpudGet(data->log);
@@ -1212,12 +1223,14 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
          vecForEach(LogSpudEntry, e, log, {
             struct nk_color c = { 0 };
             switch (e->level) {
-            case LOG_INFO: c = nk_rgb(75, 88, 255); if (!showInfo) { continue; } break;
+            case LOG_INFO: c = nk_rgb(255, 255, 255); if (!showInfo) { continue; } break;
+            case LOG_INFOBLUE: c = nk_rgb(75, 88, 255); if (!showInfo) { continue; } break;
             case LOG_WARN: c = nk_rgb(255, 242, 135); if (!showWarn) { continue; } break;
+            case LOG_SUCCESS: c = nk_rgb(70, 196, 70); if (!showSuccess) { continue; } break;
             case LOG_ERR: c = nk_rgb(219, 43, 60); if (!showError) { continue; } break;
             }
 
-            nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, c, "%s: %s", e->tag, c_str(e->msg));
+            nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, c, "|%s| %s", e->tag, c_str(e->msg));
          });
 
          size_t eCount = vecSize(LogSpudEntry)(log);

@@ -19,7 +19,7 @@
 #include "LogSpud.h"
 
 static const char *TAG = "App";
-
+static const char *dbName = "snesquest.db";
 
 static App *g_App;
 
@@ -205,25 +205,46 @@ int appRand(App *self, int lower, int upper) {
    return (rand() % (upper - lower)) + lower;
 }
 
+static void _initDB(App *self) {
+   LOG(TAG, LOG_INFO, "Initializing database connection");
+
+   if (dbConnect((DBBase*)self->db, dbName, false) != DB_SUCCESS) {
+      LOG(TAG, LOG_WARN, "Failed to connect to DB %s:", dbName);
+      LOG(TAG, LOG_WARN, "   \"%s\"", dbGetError(self->db));
+      LOG(TAG, LOG_WARN, "   Attempting rebuild");
+
+      if (dbConnect((DBBase*)self->db, dbName, true) != DB_SUCCESS) {
+         LOG(TAG, LOG_ERR, "DB build failed: %s", dbGetError(self->db));
+         dbClearError(self->db);
+      }
+      else {
+         LOG(TAG, LOG_INFO, "Created database file %s", dbName);
+         LOG(TAG, LOG_INFO, "Generating tables");
+         db_DBAssetsCreateTables(self->db);
+
+         if (dbGetError(self->db)) {
+            LOG(TAG, LOG_ERR, "DB Error during table creation: %s", dbGetError(self->db));
+            dbClearError(self->db);
+         }
+      }
+   }
+
+   if (dbIsConnected(self->db)) {
+      LOG(TAG, LOG_SUCCESS, "Connected to database");
+   }
+   else {
+      LOG(TAG, LOG_ERR, "Failed to connect to database");
+   }
+}
+
 static void _start(App *self) {
    if(deviceContextCreateWindow(self->context, &self->data)) {
       return;
    }
 
-   if (dbConnect((DBBase*)self->db, "snesquest.db", false) != DB_SUCCESS) {
-      if (dbConnect((DBBase*)self->db, "snesquest.db", true) != DB_SUCCESS) {
-         SEGASSERT(true);
-      }
-      db_DBAssetsCreateTables(self->db);
-   }   
-
-   if (dbGetError(self->db)) {
-      LOG(TAG, LOG_ERR, "DB Startup: %s", dbGetError(self->db));
-      dbClearError(self->db);
-   }
+   _initDB(self);   
 
    r_init(self->renderer);
-
    r_bindUBO(self->renderer, self->rData.ubo, 0);
 
    srand((unsigned int)time(NULL));

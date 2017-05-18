@@ -5,7 +5,7 @@
    Which contains 5 table(s).
 ***********************************************************************/
 
-#include "D:\dev\snesquest\libsnes/DBAssets.h"
+#include "D:\minwork\snesquest\libsnes/DBAssets.h"
 #include "DB.h"
 #include "libutils/CheckedMemory.h"
 #include "sqlite/sqlite3.h"
@@ -129,15 +129,16 @@ int dbPaletteOwnersCreateTable(DB_DBAssets *db){
    static const char *cmd = "CREATE TABLE \"PaletteOwners\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
-int dbPaletteOwnersInsert(DB_DBAssets *db, const DBPaletteOwners *obj){
+int dbPaletteOwnersInsert(DB_DBAssets *db, DBPaletteOwners *obj){
    int result = 0;
    static const char *stmt = "INSERT INTO \"PaletteOwners\" (\"characterMapId\") VALUES (:characterMapId);";
    if(dbPrepareStatement((DBBase*)db, &db->PaletteOwnersStmts.insert, stmt) != DB_SUCCESS){
+      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->PaletteOwnersStmts.insert, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->PaletteOwnersStmts.insert, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -150,6 +151,9 @@ int dbPaletteOwnersInsert(DB_DBAssets *db, const DBPaletteOwners *obj){
       return DB_FAILURE;
    }
 
+   //Fill the inserted record's id with its id from the db
+   obj->id = sqlite3_last_insert_rowid(db->base.conn);
+
    return DB_SUCCESS;
 }
 int dbPaletteOwnersUpdate(DB_DBAssets *db, const DBPaletteOwners *obj){
@@ -160,14 +164,14 @@ int dbPaletteOwnersUpdate(DB_DBAssets *db, const DBPaletteOwners *obj){
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->PaletteOwnersStmts.update, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->PaletteOwnersStmts.update, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->PaletteOwnersStmts.update, 2, (int)obj->id);
+   result = sqlite3_bind_int64(db->PaletteOwnersStmts.update, 2, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -254,15 +258,16 @@ int dbPalettesCreateTable(DB_DBAssets *db){
    static const char *cmd = "CREATE TABLE \"Palettes\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"paletteOwnerId\" INTEGER, \"name\" STRING, \"colorCount\" INTEGER, \"colors\" BLOB, FOREIGN KEY (\"paletteOwnerId\") REFERENCES \"PaletteOwners\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
-int dbPalettesInsert(DB_DBAssets *db, const DBPalettes *obj){
+int dbPalettesInsert(DB_DBAssets *db, DBPalettes *obj){
    int result = 0;
    static const char *stmt = "INSERT INTO \"Palettes\" (\"paletteOwnerId\", \"name\", \"colorCount\", \"colors\") VALUES (:paletteOwnerId, :name, :colorCount, :colors);";
    if(dbPrepareStatement((DBBase*)db, &db->PalettesStmts.insert, stmt) != DB_SUCCESS){
+      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->PalettesStmts.insert, 1, (int)obj->paletteOwnerId);
+   result = sqlite3_bind_int64(db->PalettesStmts.insert, 1, obj->paletteOwnerId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -274,7 +279,7 @@ int dbPalettesInsert(DB_DBAssets *db, const DBPalettes *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->PalettesStmts.insert, 3, (int)obj->colorCount);
+   result = sqlite3_bind_int64(db->PalettesStmts.insert, 3, obj->colorCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -293,6 +298,9 @@ int dbPalettesInsert(DB_DBAssets *db, const DBPalettes *obj){
       return DB_FAILURE;
    }
 
+   //Fill the inserted record's id with its id from the db
+   obj->id = sqlite3_last_insert_rowid(db->base.conn);
+
    return DB_SUCCESS;
 }
 int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj){
@@ -303,7 +311,7 @@ int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj){
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->PalettesStmts.update, 1, (int)obj->paletteOwnerId);
+   result = sqlite3_bind_int64(db->PalettesStmts.update, 1, obj->paletteOwnerId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -315,7 +323,7 @@ int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->PalettesStmts.update, 3, (int)obj->colorCount);
+   result = sqlite3_bind_int64(db->PalettesStmts.update, 3, obj->colorCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -328,7 +336,7 @@ int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj){
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->PalettesStmts.update, 5, (int)obj->id);
+   result = sqlite3_bind_int64(db->PalettesStmts.update, 5, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -374,7 +382,7 @@ vec(DBPalettes) *dbPalettesSelectAll(DB_DBAssets *db){
 
    return out;
 }
-DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int id){
+DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int64_t id){
    DBPalettes out = {0};
    int result = 0;
    static const char *stmt = "SELECT * FROM \"Palettes\" WHERE \"id\" = :id;";
@@ -382,7 +390,7 @@ DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int id){
       return out;
    }
 
-   result = sqlite3_bind_int(db->PalettesStmts.selectByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->PalettesStmts.selectByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -403,7 +411,7 @@ DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int id){
 int dbPalettesDeleteAll(DB_DBAssets *db){
 return DB_SUCCESS;
 }
-int dbPalettesDeleteByid(DB_DBAssets *db, int id){
+int dbPalettesDeleteByid(DB_DBAssets *db, int64_t id){
    int result = 0;
    static const char *stmt = "DELETE FROM \"Palettes\" WHERE (\"id\" = :id);";
    if(dbPrepareStatement((DBBase*)db, &db->PalettesStmts.deleteByid, stmt) != DB_SUCCESS){
@@ -411,7 +419,7 @@ int dbPalettesDeleteByid(DB_DBAssets *db, int id){
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->PalettesStmts.deleteByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->PalettesStmts.deleteByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -469,27 +477,28 @@ int dbCharacterImportDataCreateTable(DB_DBAssets *db){
    static const char *cmd = "CREATE TABLE \"CharacterImportData\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER NOT NULL, \"width\" INTEGER, \"height\" INTEGER, \"pixelData\" BLOB, \"offsetX\" INTEGER, \"offsetY\" INTEGER, \"tileCountX\" INTEGER, \"tileCountY\" INTEGER, \"colorMapping\" BLOB, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
-int dbCharacterImportDataInsert(DB_DBAssets *db, const DBCharacterImportData *obj){
+int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj){
    int result = 0;
    static const char *stmt = "INSERT INTO \"CharacterImportData\" (\"characterMapId\", \"width\", \"height\", \"pixelData\", \"offsetX\", \"offsetY\", \"tileCountX\", \"tileCountY\", \"colorMapping\") VALUES (:characterMapId, :width, :height, :pixelData, :offsetX, :offsetY, :tileCountX, :tileCountY, :colorMapping);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterImportDataStmts.insert, stmt) != DB_SUCCESS){
+      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 2, (int)obj->width);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 2, obj->width);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 3, (int)obj->height);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 3, obj->height);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -501,25 +510,25 @@ int dbCharacterImportDataInsert(DB_DBAssets *db, const DBCharacterImportData *ob
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 5, (int)obj->offsetX);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 5, obj->offsetX);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 6, (int)obj->offsetY);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 6, obj->offsetY);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 7, (int)obj->tileCountX);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 7, obj->tileCountX);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.insert, 8, (int)obj->tileCountY);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 8, obj->tileCountY);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -538,6 +547,9 @@ int dbCharacterImportDataInsert(DB_DBAssets *db, const DBCharacterImportData *ob
       return DB_FAILURE;
    }
 
+   //Fill the inserted record's id with its id from the db
+   obj->id = sqlite3_last_insert_rowid(db->base.conn);
+
    return DB_SUCCESS;
 }
 int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *obj){
@@ -548,19 +560,19 @@ int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *ob
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 2, (int)obj->width);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 2, obj->width);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 3, (int)obj->height);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 3, obj->height);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -572,25 +584,25 @@ int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *ob
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 5, (int)obj->offsetX);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 5, obj->offsetX);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 6, (int)obj->offsetY);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 6, obj->offsetY);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 7, (int)obj->tileCountX);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 7, obj->tileCountX);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 8, (int)obj->tileCountY);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 8, obj->tileCountY);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -603,7 +615,7 @@ int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *ob
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.update, 10, (int)obj->id);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 10, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -656,7 +668,7 @@ vec(DBCharacterImportData) *dbCharacterImportDataSelectAll(DB_DBAssets *db){
 
    return out;
 }
-DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAssets *db, int characterMapId){
+DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    DBCharacterImportData out = {0};
    int result = 0;
    static const char *stmt = "SELECT * FROM \"CharacterImportData\" WHERE \"characterMapId\" = :characterMapId;";
@@ -664,7 +676,7 @@ DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAsse
       return out;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.selectBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.selectBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -689,7 +701,7 @@ DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAsse
 
    return out;
 }
-vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAssets *db, int characterMapId){
+vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    int result = 0;
    vec(DBCharacterImportData) *out = NULL;
    static const char *stmt = "SELECT * FROM \"CharacterImportData\" WHERE \"characterMapId\" = :characterMapId;";
@@ -697,7 +709,7 @@ vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAss
       return NULL;
    }
 
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.selectBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.selectBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -737,7 +749,7 @@ vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAss
 int dbCharacterImportDataDeleteAll(DB_DBAssets *db){
 return DB_SUCCESS;
 }
-int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int characterMapId){
+int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    int result = 0;
    static const char *stmt = "DELETE FROM \"CharacterImportData\" WHERE (\"characterMapId\" = :characterMapId);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterImportDataStmts.deleteBycharacterMapId, stmt) != DB_SUCCESS){
@@ -745,7 +757,7 @@ int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int characterMa
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterImportDataStmts.deleteBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.deleteBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -807,10 +819,11 @@ int dbCharacterMapsCreateTable(DB_DBAssets *db){
    static const char *cmd = "CREATE TABLE \"CharacterMaps\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"name\" STRING, \"width\" INTEGER, \"height\" INTEGER, \"colorCount\" INTEGER, \"data\" BLOB, \"tilePaletteMap\" BLOB, \"encodePaletteCount\" INTEGER);";
    return dbExecute((DBBase*)db, cmd);
 }
-int dbCharacterMapsInsert(DB_DBAssets *db, const DBCharacterMaps *obj){
+int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj){
    int result = 0;
    static const char *stmt = "INSERT INTO \"CharacterMaps\" (\"name\", \"width\", \"height\", \"colorCount\", \"data\", \"tilePaletteMap\", \"encodePaletteCount\") VALUES (:name, :width, :height, :colorCount, :data, :tilePaletteMap, :encodePaletteCount);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterMapsStmts.insert, stmt) != DB_SUCCESS){
+      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
@@ -821,19 +834,19 @@ int dbCharacterMapsInsert(DB_DBAssets *db, const DBCharacterMaps *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.insert, 2, (int)obj->width);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.insert, 2, obj->width);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.insert, 3, (int)obj->height);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.insert, 3, obj->height);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.insert, 4, (int)obj->colorCount);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.insert, 4, obj->colorCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -851,7 +864,7 @@ int dbCharacterMapsInsert(DB_DBAssets *db, const DBCharacterMaps *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.insert, 7, (int)obj->encodePaletteCount);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.insert, 7, obj->encodePaletteCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -863,6 +876,9 @@ int dbCharacterMapsInsert(DB_DBAssets *db, const DBCharacterMaps *obj){
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
+
+   //Fill the inserted record's id with its id from the db
+   obj->id = sqlite3_last_insert_rowid(db->base.conn);
 
    return DB_SUCCESS;
 }
@@ -880,19 +896,19 @@ int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.update, 2, (int)obj->width);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.update, 2, obj->width);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.update, 3, (int)obj->height);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.update, 3, obj->height);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.update, 4, (int)obj->colorCount);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.update, 4, obj->colorCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -910,14 +926,14 @@ int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.update, 7, (int)obj->encodePaletteCount);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.update, 7, obj->encodePaletteCount);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterMapsStmts.update, 8, (int)obj->id);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.update, 8, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -968,7 +984,7 @@ vec(DBCharacterMaps) *dbCharacterMapsSelectAll(DB_DBAssets *db){
 
    return out;
 }
-DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int id){
+DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int64_t id){
    DBCharacterMaps out = {0};
    int result = 0;
    static const char *stmt = "SELECT * FROM \"CharacterMaps\" WHERE \"id\" = :id;";
@@ -976,7 +992,7 @@ DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int id){
       return out;
    }
 
-   result = sqlite3_bind_int(db->CharacterMapsStmts.selectByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.selectByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -1002,7 +1018,7 @@ DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int id){
 int dbCharacterMapsDeleteAll(DB_DBAssets *db){
 return DB_SUCCESS;
 }
-int dbCharacterMapsDeleteByid(DB_DBAssets *db, int id){
+int dbCharacterMapsDeleteByid(DB_DBAssets *db, int64_t id){
    int result = 0;
    static const char *stmt = "DELETE FROM \"CharacterMaps\" WHERE (\"id\" = :id);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterMapsStmts.deleteByid, stmt) != DB_SUCCESS){
@@ -1010,7 +1026,7 @@ int dbCharacterMapsDeleteByid(DB_DBAssets *db, int id){
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterMapsStmts.deleteByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->CharacterMapsStmts.deleteByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -1068,27 +1084,28 @@ int dbCharacterEncodePaletteCreateTable(DB_DBAssets *db){
    static const char *cmd = "CREATE TABLE \"CharacterEncodePalette\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, \"paletteId\" INTEGER, \"index\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE, FOREIGN KEY (\"paletteId\") REFERENCES \"Palettes\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
-int dbCharacterEncodePaletteInsert(DB_DBAssets *db, const DBCharacterEncodePalette *obj){
+int dbCharacterEncodePaletteInsert(DB_DBAssets *db, DBCharacterEncodePalette *obj){
    int result = 0;
    static const char *stmt = "INSERT INTO \"CharacterEncodePalette\" (\"characterMapId\", \"paletteId\", \"index\") VALUES (:characterMapId, :paletteId, :index);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterEncodePaletteStmts.insert, stmt) != DB_SUCCESS){
+      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.insert, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.insert, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.insert, 2, (int)obj->paletteId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.insert, 2, obj->paletteId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.insert, 3, (int)obj->index);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.insert, 3, obj->index);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -1101,6 +1118,9 @@ int dbCharacterEncodePaletteInsert(DB_DBAssets *db, const DBCharacterEncodePalet
       return DB_FAILURE;
    }
 
+   //Fill the inserted record's id with its id from the db
+   obj->id = sqlite3_last_insert_rowid(db->base.conn);
+
    return DB_SUCCESS;
 }
 int dbCharacterEncodePaletteUpdate(DB_DBAssets *db, const DBCharacterEncodePalette *obj){
@@ -1111,26 +1131,26 @@ int dbCharacterEncodePaletteUpdate(DB_DBAssets *db, const DBCharacterEncodePalet
    }
 
    //bind the values
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.update, 1, (int)obj->characterMapId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.update, 1, obj->characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.update, 2, (int)obj->paletteId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.update, 2, obj->paletteId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.update, 3, (int)obj->index);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.update, 3, obj->index);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.update, 4, (int)obj->id);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.update, 4, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -1173,7 +1193,7 @@ vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectAll(DB_DBAssets *db
 
    return out;
 }
-DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db, int id){
+DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db, int64_t id){
    DBCharacterEncodePalette out = {0};
    int result = 0;
    static const char *stmt = "SELECT * FROM \"CharacterEncodePalette\" WHERE \"id\" = :id;";
@@ -1181,7 +1201,7 @@ DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db
       return out;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.selectByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.selectByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -1196,7 +1216,7 @@ DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db
 
    return out;
 }
-DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_DBAssets *db, int characterMapId){
+DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    DBCharacterEncodePalette out = {0};
    int result = 0;
    static const char *stmt = "SELECT * FROM \"CharacterEncodePalette\" WHERE \"characterMapId\" = :characterMapId;";
@@ -1204,7 +1224,7 @@ DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_
       return out;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.selectBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.selectBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -1219,7 +1239,7 @@ DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_
 
    return out;
 }
-vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB_DBAssets *db, int characterMapId){
+vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    int result = 0;
    vec(DBCharacterEncodePalette) *out = NULL;
    static const char *stmt = "SELECT * FROM \"CharacterEncodePalette\" WHERE \"characterMapId\" = :characterMapId;";
@@ -1227,7 +1247,7 @@ vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB
       return NULL;
    }
 
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.selectBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.selectBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return out;
@@ -1257,7 +1277,7 @@ vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB
 int dbCharacterEncodePaletteDeleteAll(DB_DBAssets *db){
 return DB_SUCCESS;
 }
-int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int id){
+int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int64_t id){
    int result = 0;
    static const char *stmt = "DELETE FROM \"CharacterEncodePalette\" WHERE (\"id\" = :id);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterEncodePaletteStmts.deleteByid, stmt) != DB_SUCCESS){
@@ -1265,7 +1285,7 @@ int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int id){
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.deleteByid, 1, (int)id);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.deleteByid, 1, (int)id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -1280,7 +1300,7 @@ int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int id){
 
    return DB_SUCCESS;
 }
-int dbCharacterEncodePaletteDeleteBycharacterMapId(DB_DBAssets *db, int characterMapId){
+int dbCharacterEncodePaletteDeleteBycharacterMapId(DB_DBAssets *db, int64_t characterMapId){
    int result = 0;
    static const char *stmt = "DELETE FROM \"CharacterEncodePalette\" WHERE (\"characterMapId\" = :characterMapId);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterEncodePaletteStmts.deleteBycharacterMapId, stmt) != DB_SUCCESS){
@@ -1288,7 +1308,7 @@ int dbCharacterEncodePaletteDeleteBycharacterMapId(DB_DBAssets *db, int characte
    }
 
    //primary key:
-   result = sqlite3_bind_int(db->CharacterEncodePaletteStmts.deleteBycharacterMapId, 1, (int)characterMapId);
+   result = sqlite3_bind_int64(db->CharacterEncodePaletteStmts.deleteBycharacterMapId, 1, (int)characterMapId);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;

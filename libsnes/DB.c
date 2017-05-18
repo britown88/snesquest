@@ -28,7 +28,7 @@ int dbConnect(DBBase *self, const char *filename, boolean create) {
       else {
          //already open bro
          stringSet(self->err, "Database already open.");
-         return DB_SUCCESS;
+         return DB_FAILURE;
       }
    }
 
@@ -47,11 +47,13 @@ int dbConnect(DBBase *self, const char *filename, boolean create) {
       stringSet(self->dbPath, filename);
    }
 
-
-
    self->open = true;
    return DB_SUCCESS;
 }
+boolean _dbIsConnected(DBBase *self) {
+   return self->open;
+}
+
 int dbDisconnect(DBBase *self) {
    if (!self || !self->open) {
       stringSet(self->err, "No db connection.");

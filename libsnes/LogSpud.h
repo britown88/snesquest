@@ -10,7 +10,9 @@ void logSpudDestroy(LogSpud *self);
 
 typedef enum{
    LOG_INFO,
+   LOG_INFOBLUE,//like info but bluer
    LOG_WARN,
+   LOG_SUCCESS,
    LOG_ERR
 }SpudLevel;
 

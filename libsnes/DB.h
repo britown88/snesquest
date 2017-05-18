@@ -6,7 +6,6 @@ typedef struct DB_t DB;
 
 #define DB_SUCCESS 0
 #define DB_FAILURE 1
-#define DB_CREATED 2
 
 //new shit
 typedef struct sqlite3 sqlite3;
@@ -20,6 +19,10 @@ typedef struct DBBase {
 
 int dbConnect(DBBase *self, const char *filename, boolean create);
 int dbDisconnect(DBBase *self);
+
+boolean _dbIsConnected(DBBase *self);
+#define dbIsConnected(db) _dbIsConnected((DBBase*)db)
+
 void dbDestroy(DBBase *self);//this does not call free on self!!
 const char *_dbGetError(DBBase *self);
 void _dbClearError(DBBase *self);

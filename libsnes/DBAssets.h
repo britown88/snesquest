@@ -18,24 +18,24 @@ void db_DBAssetsDestroy(DB_DBAssets *self);
 int db_DBAssetsCreateTables(DB_DBAssets *self);
 
 typedef struct {
-   int id;
-   int characterMapId;
+   int64_t id;
+   int64_t characterMapId;
 } DBPaletteOwners;
 
 #define VectorTPart DBPaletteOwners
 #include "libutils/Vector_Decl.h"
 
 void dbPaletteOwnersDestroy(DBPaletteOwners *self); //this does not call free on self!!
-int dbPaletteOwnersInsert(DB_DBAssets *db, const DBPaletteOwners *obj);
+int dbPaletteOwnersInsert(DB_DBAssets *db, DBPaletteOwners *obj);
 int dbPaletteOwnersUpdate(DB_DBAssets *db, const DBPaletteOwners *obj); //will base on primary key
 vec(DBPaletteOwners) *dbPaletteOwnersSelectAll(DB_DBAssets *db);
 int dbPaletteOwnersDeleteAll(DB_DBAssets *db);
 
 typedef struct {
-   int id;
-   int paletteOwnerId;
+   int64_t id;
+   int64_t paletteOwnerId;
    String *name;
-   int colorCount;
+   int64_t colorCount;
    void *colors;
    int colorsSize;
 } DBPalettes;
@@ -44,24 +44,24 @@ typedef struct {
 #include "libutils/Vector_Decl.h"
 
 void dbPalettesDestroy(DBPalettes *self); //this does not call free on self!!
-int dbPalettesInsert(DB_DBAssets *db, const DBPalettes *obj);
+int dbPalettesInsert(DB_DBAssets *db, DBPalettes *obj);
 int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj); //will base on primary key
 vec(DBPalettes) *dbPalettesSelectAll(DB_DBAssets *db);
-DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int id);
+DBPalettes dbPalettesSelectFirstByid(DB_DBAssets *db, int64_t id);
 int dbPalettesDeleteAll(DB_DBAssets *db);
-int dbPalettesDeleteByid(DB_DBAssets *db, int id);
+int dbPalettesDeleteByid(DB_DBAssets *db, int64_t id);
 
 typedef struct {
-   int id;
-   int characterMapId;
-   int width;
-   int height;
+   int64_t id;
+   int64_t characterMapId;
+   int64_t width;
+   int64_t height;
    void *pixelData;
    int pixelDataSize;
-   int offsetX;
-   int offsetY;
-   int tileCountX;
-   int tileCountY;
+   int64_t offsetX;
+   int64_t offsetY;
+   int64_t tileCountX;
+   int64_t tileCountY;
    void *colorMapping;
    int colorMappingSize;
 } DBCharacterImportData;
@@ -70,56 +70,56 @@ typedef struct {
 #include "libutils/Vector_Decl.h"
 
 void dbCharacterImportDataDestroy(DBCharacterImportData *self); //this does not call free on self!!
-int dbCharacterImportDataInsert(DB_DBAssets *db, const DBCharacterImportData *obj);
+int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj);
 int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *obj); //will base on primary key
 vec(DBCharacterImportData) *dbCharacterImportDataSelectAll(DB_DBAssets *db);
-DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAssets *db, int characterMapId);
-vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAssets *db, int characterMapId);
+DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
+vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
 int dbCharacterImportDataDeleteAll(DB_DBAssets *db);
-int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int characterMapId);
+int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
 
 typedef struct {
-   int id;
+   int64_t id;
    String *name;
-   int width;
-   int height;
-   int colorCount;
+   int64_t width;
+   int64_t height;
+   int64_t colorCount;
    void *data;
    int dataSize;
    void *tilePaletteMap;
    int tilePaletteMapSize;
-   int encodePaletteCount;
+   int64_t encodePaletteCount;
 } DBCharacterMaps;
 
 #define VectorTPart DBCharacterMaps
 #include "libutils/Vector_Decl.h"
 
 void dbCharacterMapsDestroy(DBCharacterMaps *self); //this does not call free on self!!
-int dbCharacterMapsInsert(DB_DBAssets *db, const DBCharacterMaps *obj);
+int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj);
 int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj); //will base on primary key
 vec(DBCharacterMaps) *dbCharacterMapsSelectAll(DB_DBAssets *db);
-DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int id);
+DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int64_t id);
 int dbCharacterMapsDeleteAll(DB_DBAssets *db);
-int dbCharacterMapsDeleteByid(DB_DBAssets *db, int id);
+int dbCharacterMapsDeleteByid(DB_DBAssets *db, int64_t id);
 
 typedef struct {
-   int id;
-   int characterMapId;
-   int paletteId;
-   int index;
+   int64_t id;
+   int64_t characterMapId;
+   int64_t paletteId;
+   int64_t index;
 } DBCharacterEncodePalette;
 
 #define VectorTPart DBCharacterEncodePalette
 #include "libutils/Vector_Decl.h"
 
 void dbCharacterEncodePaletteDestroy(DBCharacterEncodePalette *self); //this does not call free on self!!
-int dbCharacterEncodePaletteInsert(DB_DBAssets *db, const DBCharacterEncodePalette *obj);
+int dbCharacterEncodePaletteInsert(DB_DBAssets *db, DBCharacterEncodePalette *obj);
 int dbCharacterEncodePaletteUpdate(DB_DBAssets *db, const DBCharacterEncodePalette *obj); //will base on primary key
 vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectAll(DB_DBAssets *db);
-DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db, int id);
-DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_DBAssets *db, int characterMapId);
-vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB_DBAssets *db, int characterMapId);
+DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstByid(DB_DBAssets *db, int64_t id);
+DBCharacterEncodePalette dbCharacterEncodePaletteSelectFirstBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
+vec(DBCharacterEncodePalette) *dbCharacterEncodePaletteSelectBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
 int dbCharacterEncodePaletteDeleteAll(DB_DBAssets *db);
-int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int id);
-int dbCharacterEncodePaletteDeleteBycharacterMapId(DB_DBAssets *db, int characterMapId);
+int dbCharacterEncodePaletteDeleteByid(DB_DBAssets *db, int64_t id);
+int dbCharacterEncodePaletteDeleteBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
 

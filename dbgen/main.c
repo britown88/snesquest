@@ -63,7 +63,7 @@ static const char *MemberTypeStrings[] = {
    "char"
 };
 static const char *MemberTypeCStrings[] = {
-   "int ",
+   "int64_t ",
    "const char *",
    "float ",
    "boolean ",
@@ -429,7 +429,7 @@ void headerCreateStruct(FILE *f, FileData *fd, DBStruct *strct) {
    vecForEach(DBMember, mem, strct->members, {
       switch (mem->type) {
       case TYPE_BLOB: fprintf(f,    "   void *%s;\n   int %sSize;\n", c_str(mem->name), c_str(mem->name)); break;
-      case TYPE_INT: fprintf(f,     "   int %s;\n", c_str(mem->name)); break;
+      case TYPE_INT: fprintf(f,     "   int64_t %s;\n", c_str(mem->name)); break;
       case TYPE_STRING: fprintf(f,  "   String *%s;\n", c_str(mem->name)); break;
       case TYPE_BOOL: fprintf(f,    "   boolean %s;\n", c_str(mem->name)); break;
       case TYPE_CHAR: fprintf(f,    "   char %s;\n", c_str(mem->name)); break;
@@ -443,7 +443,7 @@ void headerCreateStruct(FILE *f, FileData *fd, DBStruct *strct) {
 
    //functions
    fprintf(f, "void db%sDestroy(DB%s *self); //this does not call free on self!!\n", c_str(strct->name), c_str(strct->name));
-   fprintf(f, "int db%sInsert(DB_%s *db, const DB%s *obj);\n", c_str(strct->name), c_str(fd->inputFileOnly), c_str(strct->name));
+   fprintf(f, "int db%sInsert(DB_%s *db, DB%s *obj);\n", c_str(strct->name), c_str(fd->inputFileOnly), c_str(strct->name));
    fprintf(f, "int db%sUpdate(DB_%s *db, const DB%s *obj); //will base on primary key\n", c_str(strct->name), c_str(fd->inputFileOnly), c_str(strct->name));
    fprintf(f, "vec(DB%s) *db%sSelectAll(DB_%s *db);\n", c_str(strct->name), c_str(strct->name), c_str(fd->inputFileOnly));
 
@@ -552,7 +552,7 @@ void sourceWriteBindMember(FILE *f, FileData *fd, DBStruct *strct, DBMember *mem
    case TYPE_INT:
    case TYPE_BOOL:
    case TYPE_CHAR:
-      fprintf(f, "   result = sqlite3_bind_int(db->%sStmts.%s, %i, (int)obj->%s);\n",
+      fprintf(f, "   result = sqlite3_bind_int64(db->%sStmts.%s, %i, obj->%s);\n",
          c_str(strct->name), stmt, index, c_str(member->name));
       break;
    case TYPE_BLOB:
@@ -582,7 +582,7 @@ void sourceWriteBindMemberSelect(FILE *f, FileData *fd, DBStruct *strct, DBMembe
    case TYPE_INT:
    case TYPE_BOOL:
    case TYPE_CHAR:
-      fprintf(f, "   result = sqlite3_bind_int(db->%sStmts.%s, %i, (int)%s);\n",
+      fprintf(f, "   result = sqlite3_bind_int64(db->%sStmts.%s, %i, (int)%s);\n",
          c_str(strct->name), stmt, index, c_str(member->name));
       break;
    case TYPE_BLOB:
@@ -725,7 +725,8 @@ void sourceWriteCreateTable(FILE *f, FileData *fd, DBStruct *strct) {
 void sourceWriteInsert(FILE *f, FileData *fd, DBStruct *strct) {
    boolean first = true;
    int i = 0;
-   fprintf(f, "int db%sInsert(DB_%s *db, const DB%s *obj){\n", c_str(strct->name), c_str(fd->inputFileOnly), c_str(strct->name));
+   DBMember *pkey = NULL;
+   fprintf(f, "int db%sInsert(DB_%s *db, DB%s *obj){\n", c_str(strct->name), c_str(fd->inputFileOnly), c_str(strct->name));
 
    fprintf(f,
       "   int result = 0;\n"
@@ -733,6 +734,10 @@ void sourceWriteInsert(FILE *f, FileData *fd, DBStruct *strct) {
       , c_str(strct->name));
 
    vecForEach(DBMember, member, strct->members, {
+      if (member->mods&MOD(MODIFIER_PRIMARY_KEY)) {
+         pkey = member;
+      }
+
       if (!(member->mods&MOD(MODIFIER_AUTOINCREMENT))) {
          if (!first) {
             fprintf(f, ", ");
@@ -763,6 +768,7 @@ void sourceWriteInsert(FILE *f, FileData *fd, DBStruct *strct) {
    fprintf(f, ");\";\n");
    fprintf(f,
       "   if(dbPrepareStatement((DBBase*)db, &db->%sStmts.insert, stmt) != DB_SUCCESS){\n"
+      "      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));\n"
       "      return DB_FAILURE;\n"
       "   }\n\n"
       "   //bind the values\n", c_str(strct->name)
@@ -782,11 +788,23 @@ void sourceWriteInsert(FILE *f, FileData *fd, DBStruct *strct) {
       "   if (result != SQLITE_DONE) {\n"
       "      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));\n"
       "      return DB_FAILURE;\n"
-      "   }\n\n"
-      "   return DB_SUCCESS;\n", c_str(strct->name)
+      "   }\n\n", c_str(strct->name)
       );
 
-   fprintf(f, "}\n");
+   // if our pkey autoincrements, we need to retrieve the new value   
+   if (pkey && pkey->mods&MOD(MODIFIER_AUTOINCREMENT) && pkey->type == TYPE_INT) {
+      fprintf(f, 
+      "   //Fill the inserted record's id with its id from the db\n"
+      "   obj->%s = sqlite3_last_insert_rowid(db->base.conn);\n\n",
+         c_str(pkey->name)
+      );
+
+   }
+
+
+   fprintf(f, 
+      "   return DB_SUCCESS;\n"
+      "}\n");
 }
 void sourceWriteUpdate(FILE *f, FileData *fd, DBStruct *strct) {
    boolean first = true;
