@@ -74,8 +74,16 @@ void dbDestroy(DBBase *self) {
    }
 
 }
-const char *dbGetError(DBBase *self) {
+const char *_dbGetError(DBBase *self) {
+   if (!stringLen(self->err)) {
+      return NULL;
+   }
+
    return c_str(self->err);
+}
+
+void _dbClearError(DBBase *self) {
+   stringClear(self->err);
 }
 
 int dbExecute(DBBase *self, const char *cmd) {

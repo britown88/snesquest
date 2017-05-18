@@ -14,6 +14,13 @@
 #include "FrameProfiler.h"
 #include "EncodedAssets.h"
 
+#include "DBAssets.h"
+#include "DB.h"
+#include "LogSpud.h"
+
+static const char *TAG = "App";
+
+
 static App *g_App;
 
 typedef struct {
@@ -48,6 +55,8 @@ struct App_t {
    SNES snes;
    AppData data;
    FrameProfiler frameProfiler;
+   DB_DBAssets *db;
+   LogSpud *log;
 };
 
 static Window _buildWindowData() {
@@ -150,6 +159,8 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    App *out = checkedCalloc(1, sizeof(App));
    g_App = out;
 
+   out->log = logSpudCreate(&out->data);
+
    out->renderer = renderer;
    out->context = context;
 
@@ -158,6 +169,7 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
 
 
    _setupTestSNES(&out->snes);
+   out->data.log = out->log;
    out->data.snes = &out->snes;
    out->data.snesTex = out->rData.snesTexture;
 
@@ -170,12 +182,14 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    out->data.guiEnabled = true;
 #endif
 
+   out->db = db_DBAssetsCreate();
+
    return out;
 }
-void appDestroy(App *self) {
-   
-   _renderDataDestroy(&self->rData);   
-
+void appDestroy(App *self) {   
+   _renderDataDestroy(&self->rData);
+   db_DBAssetsDestroy(self->db);
+   logSpudDestroy(self->log);
    checkedFree(self);
 }
 
@@ -194,6 +208,18 @@ int appRand(App *self, int lower, int upper) {
 static void _start(App *self) {
    if(deviceContextCreateWindow(self->context, &self->data)) {
       return;
+   }
+
+   if (dbConnect((DBBase*)self->db, "snesquest.db", false) != DB_SUCCESS) {
+      if (dbConnect((DBBase*)self->db, "snesquest.db", true) != DB_SUCCESS) {
+         SEGASSERT(true);
+      }
+      db_DBAssetsCreateTables(self->db);
+   }   
+
+   if (dbGetError(self->db)) {
+      LOG(TAG, LOG_ERR, "DB Startup: %s", dbGetError(self->db));
+      dbClearError(self->db);
    }
 
    r_init(self->renderer);

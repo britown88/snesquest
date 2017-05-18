@@ -219,3 +219,5 @@ ModelManifest.xml
 /snesgen/allocReport.csv
 /libsnes/memleak.txt
 /libsnes/allocReport.csv
+/dbgen/memleak.txt
+/dbgen/allocReport.csv

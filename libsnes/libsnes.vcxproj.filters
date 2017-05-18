@@ -63,6 +63,9 @@
     <ClInclude Include="EncodedAssets.h">
       <Filter>Header Files\snesgen</Filter>
     </ClInclude>
+    <ClInclude Include="LogSpud.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="snes.c">
@@ -88,6 +91,9 @@
     </ClCompile>
     <ClCompile Include="DBAssets.c">
       <Filter>Source Files\generated</Filter>
+    </ClCompile>
+    <ClCompile Include="LogSpud.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

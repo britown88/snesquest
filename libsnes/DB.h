@@ -21,7 +21,10 @@ typedef struct DBBase {
 int dbConnect(DBBase *self, const char *filename, boolean create);
 int dbDisconnect(DBBase *self);
 void dbDestroy(DBBase *self);//this does not call free on self!!
-const char *dbGetError(DBBase *self);
+const char *_dbGetError(DBBase *self);
+void _dbClearError(DBBase *self);
+#define dbGetError(db) _dbGetError((DBBase*)db)
+#define dbClearError(db) _dbClearError((DBBase*)db)
 
 int dbExecute(DBBase *self, const char *cmd);
 

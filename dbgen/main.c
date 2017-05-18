@@ -703,11 +703,11 @@ void sourceWriteCreateTable(FILE *f, FileData *fd, DBStruct *strct) {
                                     c_str(constraint->member), c_str(constraint->parentTable), c_str(constraint->parentMember));
 
       switch (constraint->behavior) {
-      case CONSTRAINT_NO_ACTION: fprintf(f, "NO ACTION)"); break;
-      case CONSTRAINT_RESTRICT: fprintf(f, "RESTRICT)"); break;
-      case CONSTRAINT_SET_NULL: fprintf(f, "SET NULL)"); break;
-      case CONSTRAINT_SET_DEFAULT: fprintf(f, "SET DEFAULT)"); break;
-      case CONSTRAINT_CASCADE: fprintf(f, "CASCADE)"); break;
+      case CONSTRAINT_NO_ACTION: fprintf(f, "NO ACTION"); break;
+      case CONSTRAINT_RESTRICT: fprintf(f, "RESTRICT"); break;
+      case CONSTRAINT_SET_NULL: fprintf(f, "SET NULL"); break;
+      case CONSTRAINT_SET_DEFAULT: fprintf(f, "SET DEFAULT"); break;
+      case CONSTRAINT_CASCADE: fprintf(f, "CASCADE"); break;
 
       }
       

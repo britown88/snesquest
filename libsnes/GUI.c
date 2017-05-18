@@ -2,6 +2,7 @@
 #include "Renderer.h"
 
 #include "libutils/IncludeWindows.h"
+#include "LogSpud.h"
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
@@ -134,7 +135,7 @@ struct GUI_t {
    struct nk_draw_null_texture null;
    OGLData ogl;
 
-   GUIWindow *viewer, *options, *taskBar;
+   GUIWindow *viewer, *options, *taskBar, *logSpud;
    vec(GUIWindowPtr) *dialogs;
 
    size_t charToolCount;
@@ -417,6 +418,7 @@ static const float TaskBarHeight = 40.0f;
 static void _viewerUpdate(GUIWindow *self, AppData *data);
 static void _optionsUpdate(GUIWindow *self, AppData *data);
 static void _taskBarUpdate(GUIWindow *self, AppData *data);
+static void _logSpudUpdate(GUIWindow *self, AppData *data);
 
 typedef struct FileDirectory_t FileDirectory;
 #define VectorTPart FileDirectory
@@ -774,16 +776,17 @@ void _createWindows(GUI *self) {
    self->taskBar = guiWindowCreate(self, "Taskbar");
    self->taskBar->update = &_taskBarUpdate;
 
-   self->dialogs = vecCreate(GUIWindowPtr)(&_guiWindowPtrDestroy);
+   self->logSpud = guiWindowCreate(self, "LogSpud");
+   self->logSpud->update = &_logSpudUpdate;
 
-   GUIWindow *ctool = _charToolCreate(self);
-   vecPushBack(GUIWindowPtr)(self->dialogs, &ctool);
+   self->dialogs = vecCreate(GUIWindowPtr)(&_guiWindowPtrDestroy);
 }
 
 void _destroyWindows(GUI *self){
    guiWindowDestroy(self->viewer);
    guiWindowDestroy(self->options);
    guiWindowDestroy(self->taskBar);
+   guiWindowDestroy(self->logSpud);
    vecDestroy(GUIWindowPtr)(self->dialogs);
 }
 
@@ -973,16 +976,22 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
 
       if (nk_tree_push(ctx, NK_TREE_TAB, "Tools", NK_MINIMIZED)) {
          nk_layout_row_dynamic(ctx, 20, 1);
+
          if (nk_button_label(ctx, "CharTool")) {
             GUIWindow *ctool = _charToolCreate(self->parent);
             vecPushBack(GUIWindowPtr)(self->parent->dialogs, &ctool);
          }
-         nk_layout_row_dynamic(ctx, 20, 1);
          if (nk_button_label(ctx, "Nuklear Demo")) {
             openDemo = true;
             nk_window_show(ctx, "Overview", NK_SHOWN);
             nk_window_set_focus(ctx, "Overview");
          }
+         if (nk_button_label(ctx, "Test Logging")) {
+            LOG("Testing", LOG_INFO, "WHat is %s", "going on");
+            LOG("Testing", LOG_WARN, "WHat is %s", "going on");
+            LOG("Testing", LOG_ERR, "WHat is %s", "going on");
+         }
+
 
          nk_tree_pop(ctx);
       }
@@ -1070,13 +1079,30 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
          nk_tree_pop(ctx);
       }
 
-      nk_layout_row_dynamic(ctx, 0, 1);
+      nk_layout_row_begin(ctx, NK_DYNAMIC, 55, 2);
+
+      nk_layout_row_push(ctx, 0.25f);
+      static Texture *spud = NULL;
+      if (!spud) {
+         TextureRequest request = {
+            .repeatType = RepeatType_Clamp,
+            .filterType = FilterType_Nearest,
+            .rawBuffer = enc_SpudTexture,
+            .rawSize = sizeof(enc_SpudTexture)
+         };         spud = textureManagerGetTexture(data->textureManager, request);
+
+      }
+      if (nk_button_image(ctx, nk_image_id((int)textureGetGLHandle(spud)))) {
+         nk_window_show(ctx, "LogSpud", NK_SHOWN);
+         nk_window_set_focus(ctx, "LogSpud");
+      }
+
+      nk_layout_row_push(ctx, 0.75f);
       enum nk_widget_layout_states state;
       struct nk_rect bounds;
       state = nk_widget(&bounds, ctx);
       if (state) {
          static Texture *logo = NULL;
-
          if (!logo) {
             TextureRequest request = {
                .repeatType = RepeatType_Clamp,
@@ -1084,8 +1110,7 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
                .rawBuffer = enc_LogoTexture,
                .rawSize = sizeof(enc_LogoTexture)
             };
-            logo = textureManagerGetTexture(data->textureManager, request);
-            
+            logo = textureManagerGetTexture(data->textureManager, request);            
          }
 
          struct nk_image img = nk_image_id((int)textureGetGLHandle(logo));
@@ -1094,6 +1119,8 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
          bounds.h = bounds.w * (sz.y / (float)sz.x);
          nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgba(255, 255, 255, 128));
       }
+
+      nk_layout_row_end(ctx);
 
    }
    nk_end(ctx);
@@ -1122,6 +1149,62 @@ void _taskBarUpdate(GUIWindow *self, AppData *data) {
    }
    nk_end(ctx);
 }
+void _logSpudUpdate(GUIWindow *self, AppData *data) {
+   struct nk_context *ctx = &self->parent->ctx;
+   Int2 winSize = data->window->nativeResolution;
+   static const Int2 dlgSize = { 400, 600 };
+
+   struct nk_rect winRect = nk_rect(
+      (winSize.x - dlgSize.x) / 2.0f,
+      (winSize.y - dlgSize.y) / 2.0f,
+      (float)dlgSize.x, (float)dlgSize.y);
+
+   nk_flags winFlags = 
+      NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE |
+      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_NO_SCROLLBAR;
+
+   static boolean firstLoad = true;
+   if (firstLoad) {
+      winFlags |= NK_WINDOW_HIDDEN;
+      firstLoad = false;
+   }
+
+
+   if (nk_begin(ctx, c_str(self->name), winRect, winFlags))
+   {
+      struct nk_panel *pnl = nk_window_get_panel(ctx);
+
+      nk_layout_row_dynamic(ctx, pnl->bounds.h - 10, 1);
+      if (nk_group_begin(ctx, "loggrp", NK_WINDOW_BORDER)) {
+         static size_t logCount = 0;
+
+         nk_layout_row_dynamic(ctx, 15, 1);
+         vec(LogSpudEntry) *log = logSpudGet(data->log);
+         
+
+         vecForEach(LogSpudEntry, e, log, {
+            struct nk_color c = { 0 };
+            switch (e->level) {
+            case LOG_INFO: c = nk_rgb(75, 88, 255); break;
+            case LOG_WARN: c = nk_rgb(255, 242, 135); break;
+            case LOG_ERR: c = nk_rgb(219, 43, 60); break;
+            }
+
+            nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, c, "%s: %s", e->tag, c_str(e->msg));
+         });
+
+         size_t eCount = vecSize(LogSpudEntry)(log);
+         if (eCount != logCount) {
+            *ctx->current->layout->offset_y = (int)INT_MAX;
+            logCount = eCount;
+         }
+
+         nk_group_end(ctx);
+      }
+   }
+   nk_end(ctx);
+}
+
 
 static void _loadFiles(FileDirectory *root) {
    vec(StringPtr) *dirs = 0, *files = 0;
@@ -1671,9 +1754,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          self->optShowTilePalettes = false;
       }
    }
-
    
-
    nk_end(ctx);
 
    
@@ -1913,6 +1994,7 @@ void guiUpdate(GUI *self, AppData *data) {
    _viewerUpdate(self->viewer, data);
    _optionsUpdate(self->options, data);
    _taskBarUpdate(self->taskBar, data);
+   _logSpudUpdate(self->logSpud, data);
 
    vec(GUIWindowPtr) *remList = vecCreate(GUIWindowPtr)(NULL);
    vecForEach(GUIWindowPtr, win, self->dialogs, {

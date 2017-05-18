@@ -126,7 +126,7 @@ void dbPaletteOwnersDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbPaletteOwnersCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"PaletteOwners\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE));";
+   static const char *cmd = "CREATE TABLE \"PaletteOwners\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbPaletteOwnersInsert(DB_DBAssets *db, const DBPaletteOwners *obj){
@@ -251,7 +251,7 @@ void dbPalettesDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbPalettesCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"Palettes\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"paletteOwnerId\" INTEGER, \"name\" STRING, \"colorCount\" INTEGER, \"colors\" BLOB, FOREIGN KEY (\"paletteOwnerId\") REFERENCES \"PaletteOwners\" (\"id\") ON DELETE CASCADE));";
+   static const char *cmd = "CREATE TABLE \"Palettes\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"paletteOwnerId\" INTEGER, \"name\" STRING, \"colorCount\" INTEGER, \"colors\" BLOB, FOREIGN KEY (\"paletteOwnerId\") REFERENCES \"PaletteOwners\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbPalettesInsert(DB_DBAssets *db, const DBPalettes *obj){
@@ -466,7 +466,7 @@ void dbCharacterImportDataDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbCharacterImportDataCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"CharacterImportData\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER NOT NULL, \"width\" INTEGER, \"height\" INTEGER, \"pixelData\" BLOB, \"offsetX\" INTEGER, \"offsetY\" INTEGER, \"tileCountX\" INTEGER, \"tileCountY\" INTEGER, \"colorMapping\" BLOB, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE));";
+   static const char *cmd = "CREATE TABLE \"CharacterImportData\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER NOT NULL, \"width\" INTEGER, \"height\" INTEGER, \"pixelData\" BLOB, \"offsetX\" INTEGER, \"offsetY\" INTEGER, \"tileCountX\" INTEGER, \"tileCountY\" INTEGER, \"colorMapping\" BLOB, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbCharacterImportDataInsert(DB_DBAssets *db, const DBCharacterImportData *obj){
@@ -1065,7 +1065,7 @@ void dbCharacterEncodePaletteDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbCharacterEncodePaletteCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"CharacterEncodePalette\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, \"paletteId\" INTEGER, \"index\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE), FOREIGN KEY (\"paletteId\") REFERENCES \"Palettes\" (\"id\") ON DELETE CASCADE));";
+   static const char *cmd = "CREATE TABLE \"CharacterEncodePalette\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER, \"paletteId\" INTEGER, \"index\" INTEGER, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE, FOREIGN KEY (\"paletteId\") REFERENCES \"Palettes\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbCharacterEncodePaletteInsert(DB_DBAssets *db, const DBCharacterEncodePalette *obj){

@@ -7,6 +7,7 @@ typedef struct SNES_t SNES;
 typedef struct TextureManager_t TextureManager;
 typedef struct Texture_t Texture;
 typedef struct FrameProfiler_t FrameProfiler;
+typedef struct LogSpud_t LogSpud;
 
 typedef struct {
    Int2 windowResolution;
@@ -25,6 +26,7 @@ typedef struct AppData_t {
    SNES *snes;
    TextureManager *textureManager;
    FrameProfiler *frameProfiler;
+   LogSpud *log;
 
    const Window *window;
    Variables variables;
