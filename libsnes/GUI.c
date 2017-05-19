@@ -14,6 +14,7 @@
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
+#include <string.h>
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -1035,6 +1036,8 @@ typedef struct {
 
    float grp1Resize, grp2Resize;
 
+   String *savePaletteName, *saveCharMapName;
+
 }CharTool;
 
 static void _charToolUpdate(GUIWindow *self, AppData *data);
@@ -1070,6 +1073,9 @@ GUIWindow *_charToolCreate(GUI *gui) {
    out->selectedColorLink = -1;
    out->optShowColorGuide = true;
 
+   out->savePaletteName = stringCreate("");
+   out->saveCharMapName = stringCreate("");
+
    return outwin;
 }
 void _charToolDestroy(GUIWindow *_self) {
@@ -1089,6 +1095,9 @@ void _charToolDestroy(GUIWindow *_self) {
    for (i = 0; i < 4; ++i) {
       vecDestroy(SNESColor)(self->encodePalette[i]);
    }
+
+   stringDestroy(self->savePaletteName);
+   stringDestroy(self->saveCharMapName);
 }
 
 static void _updateEncodeTest(CharTool *self) {
@@ -1332,6 +1341,8 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
 
    return out;
 }
+
+#define MAX_NAME_LEN 64
 
 void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    struct nk_context *ctx = &selfwin->parent->ctx;
@@ -1802,16 +1813,33 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
       nk_layout_row_push(ctx, optGroupWidth);
       if (nk_group_begin(ctx, "saveLoad", 0)) {
-         static char text[9][64];
-         static int text_len[9];
+         static const size_t MaxNameLen = 64;
+
+         static char palNameBuff[MAX_NAME_LEN + 1];
+         size_t palLen = NK_MIN(stringLen(self->savePaletteName), MAX_NAME_LEN);
+
+         static char charNameBuff[MAX_NAME_LEN + 1];
+         size_t charLen = NK_MIN(stringLen(self->saveCharMapName), MAX_NAME_LEN);
+
+
+         memcpy(palNameBuff, c_str(self->savePaletteName), palLen);
+         palNameBuff[palLen] = 0;
+         memcpy(charNameBuff, c_str(self->saveCharMapName), charLen);
+         charNameBuff[charLen] = 0;
 
          float layout[] = { 0.6f, 0.4f };
-
          nk_layout_row(ctx, NK_DYNAMIC, 20, 2, layout);
-         nk_edit_string(ctx, NK_EDIT_SIMPLE, text[0], &text_len[0], 64, nk_filter_ascii);
+
+         if (nk_edit_string(ctx, NK_EDIT_SIMPLE, palNameBuff, &palLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
+            palNameBuff[palLen] = 0;
+            stringSet(self->savePaletteName, palNameBuff);
+         }
          nk_button_label(ctx, "Palette");
 
-         nk_edit_string(ctx, NK_EDIT_SIMPLE, text[1], &text_len[1], 64, nk_filter_ascii);
+         if (nk_edit_string(ctx, NK_EDIT_SIMPLE, charNameBuff, &charLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
+            charNameBuff[charLen] = 0;
+            stringSet(self->saveCharMapName, charNameBuff);
+         }
          nk_button_label(ctx, "Char Map");
 
          nk_group_end(ctx);
