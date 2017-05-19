@@ -80,7 +80,7 @@ void runAssetGen(const char *file) {
 
       Token *asset = _acceptAsset(strm);
       if (asset) {
-         char *fName = c_str(asset->str);
+         const char *fName = c_str(asset->str);
          long fSize = 0;
          byte *buff = readFullFile(fName, &fSize);
 

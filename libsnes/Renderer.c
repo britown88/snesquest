@@ -38,7 +38,7 @@ static size_t _s2uHash(StringToUniform *p) {
 
 struct Shader_t {
    String *filePath;
-   char *shaderBuffer;
+   const char *shaderBuffer;
    ShaderParams params;
    boolean built;
    GLuint handle;
@@ -139,7 +139,7 @@ static unsigned int _shaderLink(unsigned int vertex, unsigned int fragment) {
 }
 static void _shaderBuild(Shader *self) {
    long fSize = 0;
-   byte *file = NULL;
+   const byte *file = NULL;
 
    if (self->filePath) {
       file = readFullFile(c_str(self->filePath), &fSize);
@@ -200,7 +200,7 @@ static void _shaderBuild(Shader *self) {
    }
 
    if (self->filePath) {
-      checkedFree(file);
+      checkedFree((byte *)file);
    }
 
    vecDestroy(StringPtr)(vertShader);

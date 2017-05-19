@@ -1,8 +1,15 @@
 #include "GUI.h"
+#include "snes.h"
 #include "Renderer.h"
+#include "DBAssets.h"
+#include "LogSpud.h"
+#include "AppData.h"
+#include "DeviceContext.h"
+#include "FrameProfiler.h"
+#include "EncodedAssets.h"
 
 #include "libutils/IncludeWindows.h"
-#include "LogSpud.h"
+#include "libutils/CheckedMemory.h"
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
@@ -18,16 +25,10 @@
 #define NK_IMPLEMENTATION
 #include "nuklear.h"
 
-#include "libutils/CheckedMemory.h"
 
 #define MAX_VERTEX_MEMORY 1024 * 1024
 #define MAX_ELEMENT_MEMORY 512 * 1024
 
-#include "libsnes/snes.h"
-#include "AppData.h"
-#include "DeviceContext.h"
-#include "FrameProfiler.h"
-#include "EncodedAssets.h"
 
 static const char *LogSpudWin = "LogSpud";
 static struct nk_color _colorToNKColor(ColorRGBA in) { return nk_rgb(in.r, in.g, in.b); }
@@ -461,6 +462,7 @@ static int _colorCountFromOption(e_ColorOptions opt) {
    case ColorOption4: return 4;
    case ColorOption16: return 16;
    case ColorOption256: return 256;
+   default: return 0;
    }
 }
 
@@ -506,8 +508,8 @@ typedef struct {
    int optCurrentPalette;
    int optShowTilePalettes;
 
-   boolean paletteTileMode;
-   boolean paletteTileModeClick;
+   int paletteTileMode;
+   int paletteTileModeClick;
    Int2 paletteTileModeClickStart;
 
    float grp1Resize, grp2Resize;
@@ -572,7 +574,6 @@ static int encTestLineCounter = 0, encTestLineTimer = 0;
 static void _updateEncodeTest(CharTool *self) {
    ColorRGBA *pixels = self->encodeTestPixels;
    int x = 0, y = 0;
-   Int2 encSize = textureGetSize(self->encodeTest);
    Int2 impSize = textureGetSize(self->imported);
 
    int pixelIdx = 0;//track the pixel in the target texture
@@ -632,12 +633,11 @@ static void _updateEncodeTest(CharTool *self) {
 static void _smartFillEncodedPalette(CharTool *self) {
    
    int x = 0, y = 0;
-   Int2 encSize = textureGetSize(self->encodeTest);
    Int2 impSize = textureGetSize(self->imported);
 
    int pIdx = 0;//self->optCurrentPalette;
    for (pIdx = 0; pIdx < 4; ++pIdx) {
-      int current = 1;
+      size_t current = 1;
 
       //clear existing
       size_t paletteSize = vecSize(SNESColor)(self->encodePalette[pIdx]);
@@ -671,7 +671,7 @@ static void _smartFillEncodedPalette(CharTool *self) {
                ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
                //now fit it onto the palette and link it up
 
-               int p = 1;
+               size_t p = 1;
                for (p = 1; p < current; ++p) {
                   SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette[pIdx], p);
                   if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
@@ -1356,11 +1356,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
-            struct nk_panel *pnl = nk_window_get_panel(ctx);
-
-            //nk_layout_row_dynamic(ctx, 0, 1);
-            struct nk_rect rbounds = pnl->bounds;
-            //nk_layout_peek(&rbounds, ctx);            
+            struct nk_panel *pnl = nk_window_get_panel(ctx);      
 
             struct nk_image img = nk_image_id((int)textureGetGLHandle(self->imported));
             Int2 impSize = textureGetSize(self->imported);
@@ -1394,8 +1390,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       if (nk_group_begin(ctx, "Encoding", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
-            struct nk_panel *pnl = nk_window_get_panel(ctx);
-            struct nk_rect rbounds = pnl->bounds;       
+            struct nk_panel *pnl = nk_window_get_panel(ctx);    
 
             struct nk_image img = nk_image_id((int)textureGetGLHandle(self->encodeTest));
             Int2 imgSize = textureGetSize(self->encodeTest);
@@ -1420,12 +1415,12 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                      if (nk_input_is_mouse_down(in, NK_BUTTON_LEFT)) {
                         if (!self->paletteTileModeClick) {
                            self->paletteTileModeClick = true;
-                           self->paletteTileModeClickStart = (Int2) { in->mouse.pos.x, in->mouse.pos.y };
+                           self->paletteTileModeClickStart = (Int2) { (int)in->mouse.pos.x, (int)in->mouse.pos.y };
                         }
 
                         nk_stroke_rect(canvas, nk_rect(
-                           self->paletteTileModeClickStart.x, 
-                           self->paletteTileModeClickStart.y,
+                           (float)self->paletteTileModeClickStart.x, 
+                           (float)self->paletteTileModeClickStart.y,
                            in->mouse.pos.x - self->paletteTileModeClickStart.x,
                            in->mouse.pos.y - self->paletteTileModeClickStart.y
                            ), 0, 3, lineColor);
@@ -1433,10 +1428,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                      else if(self->paletteTileModeClick) {
                         self->paletteTileModeClick = false;
 
-                        int xTile = (self->paletteTileModeClickStart.x - bounds.x) / tWidth;
-                        int yTile = (self->paletteTileModeClickStart.y - bounds.y) / tHeight;
-                        int xTileCount = (in->mouse.pos.x - self->paletteTileModeClickStart.x) / tWidth + 1;
-                        int yTileCount = (in->mouse.pos.y - self->paletteTileModeClickStart.y) / tHeight + 1;
+                        int xTile = (int)((self->paletteTileModeClickStart.x - bounds.x) / tWidth);
+                        int yTile = (int)((self->paletteTileModeClickStart.y - bounds.y) / tHeight);
+                        int xTileCount = (int)((in->mouse.pos.x - self->paletteTileModeClickStart.x) / tWidth + 1);
+                        int yTileCount = (int)((in->mouse.pos.y - self->paletteTileModeClickStart.y) / tHeight + 1);
 
                         for (x = 0; x < xTileCount; ++x) {
                            for (y = 0; y < yTileCount; ++y) {
@@ -1506,7 +1501,6 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                      vecResize(SNESColor)(self->encodePalette[i], _colorCountFromOption(self->colorOption), &(SNESColor){0});
                   }
                }
-               Int2 encSize = textureGetSize(self->encodeTest);
                Int2 impSize = textureGetSize(self->imported);
 
                boolean sizeUpdate = false;

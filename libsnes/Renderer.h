@@ -48,7 +48,7 @@ typedef struct {
    RepeatType repeatType;
    FilterType filterType;
    StringView path;
-   char *rawBuffer;
+   const char *rawBuffer;
    unsigned int rawSize;
 } TextureRequest;
 

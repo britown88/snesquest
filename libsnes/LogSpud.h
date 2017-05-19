@@ -1,6 +1,9 @@
 #pragma once
 
 #include "libutils/String.h"
+#include <stdio.h>
+#include "App.h"
+#include "AppData.h"
 
 typedef struct LogSpud_t LogSpud;
 typedef struct AppData_t AppData;
@@ -20,7 +23,7 @@ void logSpudPushRaw(LogSpud *self, const char *tag, SpudLevel level, const char 
 void logSpudPush(LogSpud *self, const char *tag, SpudLevel level, String *msg);
 
 #define LOG(TAG, LEVEL, MSG, ...) { \
-   const char __msgBuff[256] = {0}; \
+   char __msgBuff[256] = {0}; \
    sprintf(__msgBuff, MSG, __VA_ARGS__); \
    logSpudPushRaw(appGetData(appGet())->log, TAG, LEVEL, __msgBuff); \
 }
