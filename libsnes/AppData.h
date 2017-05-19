@@ -8,6 +8,7 @@ typedef struct TextureManager_t TextureManager;
 typedef struct Texture_t Texture;
 typedef struct FrameProfiler_t FrameProfiler;
 typedef struct LogSpud_t LogSpud;
+typedef struct DB_DBAssets DB_DBAssets;
 
 typedef struct {
    Int2 windowResolution;
@@ -27,6 +28,7 @@ typedef struct AppData_t {
    TextureManager *textureManager;
    FrameProfiler *frameProfiler;
    LogSpud *log;
+   DB_DBAssets *db;
 
    const Window *window;
    Variables variables;

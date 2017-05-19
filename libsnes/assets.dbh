@@ -45,7 +45,7 @@ table CharacterImportData{
 
 table CharacterMaps{
    SELECT PRIMARY_KEY UNIQUE AUTOINCREMENT int id;
-   String name;
+   UNIQUE String name;
 
    // width/height are in terms of 8x8 tiles
    int width;
@@ -57,7 +57,7 @@ table CharacterMaps{
    // bitplaned ppu format
    Blob data;
 
-   // width*height ints 0-3 for alternative palettes to use
+   // width*height bytes 0-3 for alternative palettes to use
    Blob tilePaletteMap;
 
    // how many palettes did we encode with

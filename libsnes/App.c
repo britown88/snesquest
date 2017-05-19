@@ -183,6 +183,7 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
 #endif
 
    out->db = db_DBAssetsCreate();
+   out->data.db = out->db;
 
    return out;
 }

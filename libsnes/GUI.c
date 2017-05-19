@@ -1,6 +1,7 @@
 #include "GUI.h"
 #include "snes.h"
 #include "Renderer.h"
+#include "DB.h"
 #include "DBAssets.h"
 #include "LogSpud.h"
 #include "AppData.h"
@@ -33,6 +34,7 @@
 #define _colorToNKColor(in) nk_rgb(in.r, in.g, in.b)
 
 static const char *LogSpudWin = "LogSpud";
+static const char *TAG = "GUI";
 
 #pragma region BASE GUI
 
@@ -598,11 +600,11 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
             nk_window_set_focus(ctx, "Overview");
          }
          if (nk_button_label(ctx, "Test Logging")) {
-            LOG("GUI", LOG_INFO, "Here's some info");
-            LOG("GUI", LOG_INFOBLUE, "Here's some info that is blue");
-            LOG("GUI", LOG_WARN, "Hey you shhould take a look at this");
-            LOG("GUI", LOG_SUCCESS, "Hey it worked");
-            LOG("GUI", LOG_ERR, "Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck ");
+            LOG(TAG, LOG_INFO, "Here's some info");
+            LOG(TAG, LOG_INFOBLUE, "Here's some info that is blue");
+            LOG(TAG, LOG_WARN, "Hey you shhould take a look at this");
+            LOG(TAG, LOG_SUCCESS, "Hey it worked");
+            LOG(TAG, LOG_ERR, "Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck Oh fuck ");
          }
 
 
@@ -1248,7 +1250,7 @@ static void _updateEncodeTestSize(CharTool *self) {
    Int2 encTestSize = { self->optXTileCount * 8, self->optYTileCount * 8 };
    self->encodeTestPixels = checkedCalloc(1, encTestSize.x * encTestSize.y * sizeof(ColorRGBA));
    self->encodeTest = textureCreateCustom(encTestSize.x, encTestSize.y, RepeatType_Clamp, FilterType_Nearest);
-   self->tilePaletteMap = checkedCalloc(self->optXTileCount * self->optYTileCount, sizeof(byte));
+   self->tilePaletteMap = checkedCalloc(1, self->optXTileCount * self->optYTileCount);
 }
 
 //Import a texture from a file update all options and such back to normal
@@ -1342,8 +1344,31 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
    return out;
 }
 
-#define MAX_NAME_LEN 64
+static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
+   DBCharacterMaps newcmap = { 0 };
 
+   newcmap.name = stringCopy(self->saveCharMapName);
+   newcmap.width = self->optXTileCount;
+   newcmap.height = self->optYTileCount;
+
+   newcmap.colorCount = _colorCountFromOption(self->colorOption);
+
+   newcmap.tilePaletteMapSize = self->optXTileCount * self->optYTileCount;
+   newcmap.tilePaletteMap = checkedCalloc(1, newcmap.tilePaletteMapSize);
+   memcpy(newcmap.tilePaletteMap, self->tilePaletteMap, newcmap.tilePaletteMapSize);
+
+   if (dbCharacterMapsInsert(data->db, &newcmap) != DB_SUCCESS) {
+      LOG(TAG, LOG_ERR, "Failed to insert CharacterMap:");
+      LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+   }
+   else {
+      LOG(TAG, LOG_INFO, "Inserted CharacterMap %i", newcmap.id);
+   }
+   
+   dbCharacterMapsDestroy(&newcmap);
+}
+
+#define MAX_NAME_LEN 64
 void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    struct nk_context *ctx = &selfwin->parent->ctx;
    CharTool *self = (CharTool*)selfwin;
@@ -1840,7 +1865,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             charNameBuff[charLen] = 0;
             stringSet(self->saveCharMapName, charNameBuff);
          }
-         nk_button_label(ctx, "Char Map");
+         if (nk_button_label(ctx, "Char Map")) {
+            if (self->imported) {
+               _commitCharacterMapToDB(self, data);
+            }
+         }
 
          nk_group_end(ctx);
       }

@@ -816,7 +816,7 @@ void dbCharacterMapsDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbCharacterMapsCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"CharacterMaps\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"name\" STRING, \"width\" INTEGER, \"height\" INTEGER, \"colorCount\" INTEGER, \"data\" BLOB, \"tilePaletteMap\" BLOB, \"encodePaletteCount\" INTEGER);";
+   static const char *cmd = "CREATE TABLE \"CharacterMaps\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"name\" STRING UNIQUE, \"width\" INTEGER, \"height\" INTEGER, \"colorCount\" INTEGER, \"data\" BLOB, \"tilePaletteMap\" BLOB, \"encodePaletteCount\" INTEGER);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj){
