@@ -29,60 +29,11 @@
 #define MAX_VERTEX_MEMORY 1024 * 1024
 #define MAX_ELEMENT_MEMORY 512 * 1024
 
+#define _colorToNKColor(in) nk_rgb(in.r, in.g, in.b)
 
 static const char *LogSpudWin = "LogSpud";
-static struct nk_color _colorToNKColor(ColorRGBA in) { return nk_rgb(in.r, in.g, in.b); }
 
-typedef struct {
-   SNESColor color;
-   int encodingIndex[4];  //index in the encode palette to use for the encode
-}ColorMapEntry;
-
-#define VectorT ColorMapEntry
-#include "libutils/Vector_Create.h"
-
-#define VectorT SNESColor
-#include "libutils/Vector_Create.h"
-
-//colormap is a texture-sized pre-allocated array of ints for putting the pixel indices into the output palette
-static void _getUniqueColors(Texture *tex, vec(ColorMapEntry) *out, int *colorMap) {
-   const ColorRGBA *pixels = textureGetPixels(tex);
-   Int2 sz = textureGetSize(tex);
-   int x, y;
-
-   vecClear(ColorMapEntry)(out);
-   for (y = 0; y < sz.y; ++y) {
-      for (x = 0; x < sz.x; ++x) {
-         int idx = y*sz.x + x;
-         ColorRGBA c =  pixels[idx];
-         if (c.a == 255) {
-            SNESColor bit15 = snesColorConvertFrom24Bit(c);
-            byte2 raw = *(byte2*)&bit15;
-
-            boolean found = false;
-            int mapColor = 0;
-            vecForEach(ColorMapEntry, other, out, {
-               if (raw == *(byte2*)&other->color) {
-                  found = true;
-                  colorMap[idx] = mapColor;
-                  break;
-               }
-               ++mapColor;
-            });
-
-            if (!found) {
-               ColorMapEntry newEntry = { 0 };
-               newEntry.color = bit15;
-               vecPushBack(ColorMapEntry)(out, &newEntry);
-               colorMap[idx] = mapColor;
-            }
-         }
-         else {
-            colorMap[idx] = -1;
-         }
-      }
-   }
-}
+#pragma region BASE GUI
 
 typedef struct GUIWindow_t GUIWindow;
 typedef struct GUIWindow_t{
@@ -91,7 +42,6 @@ typedef struct GUIWindow_t{
    void(*destroy)(GUIWindow *self); //handle any destruction of extra data
    void(*update)(GUIWindow *self, AppData *data);
 } GUIWindow;
-
 
 static GUIWindow *guiWindowCreate(GUI *parent, const char *name) {
    GUIWindow *out = checkedCalloc(1, sizeof(GUIWindow));
@@ -423,350 +373,7 @@ static void _optionsUpdate(GUIWindow *self, AppData *data);
 static void _taskBarUpdate(GUIWindow *self, AppData *data);
 static void _logSpudUpdate(GUIWindow *self, AppData *data);
 
-typedef struct FileDirectory_t FileDirectory;
-#define VectorTPart FileDirectory
-#include "libutils/Vector_Decl.h"
-
-typedef struct FileDirectory_t {
-   vec(StringPtr) *files;
-   vec(FileDirectory) *children;
-   String *path, *name;
-}FileDirectory;
-
-#define VectorTPart FileDirectory
-#include "libutils/Vector_Impl.h"
-
-static void _fileDirectoryDestroy(FileDirectory *self) {
-   stringDestroy(self->path);
-   stringDestroy(self->name);
-   vecDestroy(StringPtr)(self->files);
-   vecDestroy(FileDirectory)(self->children);
-}
-
-static void _fileDirectoryInit(FileDirectory *self, const char *path) {
-   self->path = stringCreate(path);
-   self->name = stringGetFilename(self->path);
-   self->children = vecCreate(FileDirectory)(&_fileDirectoryDestroy);
-   self->files = vecCreate(StringPtr)(&stringPtrDestroy);
-}
-
-
-typedef enum {
-   ColorOption4,
-   ColorOption16,
-   ColorOption256   
-}e_ColorOptions;
-static const char* ColorOptions[3] = { "4-Color", "16-Color", "256-Color" };
-static int _colorCountFromOption(e_ColorOptions opt) {
-   switch (opt) {
-   case ColorOption4: return 4;
-   case ColorOption16: return 16;
-   case ColorOption256: return 256;
-   default: return 0;
-   }
-}
-
-typedef struct {
-   GUIWindow base;
-
-   FileDirectory files;
-   boolean filesLoaded;
-
-   Texture 
-      //the imported image file
-      *imported, 
-
-      //the image showing how it will be encoding
-      *encodeTest; 
-
-   // the set of unique colors in imported, contains the 
-   // original color and an index into the encode palette to map to
-   vec(ColorMapEntry) *importedColors; 
-
-   // same size as imported texture, each pixel is an index into the importedColors vector
-   int *importColorMap;
-
-   //1 byte per 8x8 tile of which of the 4 palettes to use
-   byte *tilePaletteMap; 
-
-   // pixel buffer sent off to update encodeTest
-   ColorRGBA *encodeTestPixels;
-
-   // palette used to encode the final image
-   vec(SNESColor) *encodePalette[4];
-
-   // how many colors in the encode palette
-   e_ColorOptions colorOption;
-
-   //index into the unique colorEntries to use for  linking
-   int selectedColorLink, selectedEncodeColor;
-
-   //offset of impoirted image and how many 8x8 tiles to grab for the encode
-   int optXOffset, optYOffset, optXTileCount, optYTileCount;
-   int optShowGrid;
-   int optShowColorGuide;
-   int optCurrentPalette;
-   int optShowTilePalettes;
-
-   int paletteTileMode;
-   int paletteTileModeClick;
-   Int2 paletteTileModeClickStart;
-
-   float grp1Resize, grp2Resize;
-
-}CharTool;
-
-static void _charToolUpdate(GUIWindow *self, AppData *data);
-static void _charToolDestroy(GUIWindow *self);
-
-static GUIWindow *_charToolCreate(GUI *gui) {
-   CharTool *out = checkedCalloc(1, sizeof(CharTool));
-   GUIWindow *outwin = (GUIWindow*)out;
-
-   outwin->parent = gui;
-   outwin->name = stringCreate("CharTool|");
-
-   char buff[8] = { 0 };
-   sprintf(buff, "%i|", gui->charToolCount++);
-   stringConcat(outwin->name, buff);
-
-   outwin->destroy = &_charToolDestroy;
-   outwin->update = &_charToolUpdate;
-
-   _fileDirectoryInit(&out->files, ".");
-
-   out->importedColors = vecCreate(ColorMapEntry)(NULL);
-
-   out->colorOption = ColorOption16;
-
-   int i = 0;
-   for (i = 0; i < 4; ++i) {
-      out->encodePalette[i] = vecCreate(SNESColor)(NULL);
-      vecResize(SNESColor)(out->encodePalette[i], _colorCountFromOption(out->colorOption), &(SNESColor){0});
-   }
-   
-
-   out->selectedColorLink = -1;
-   out->optShowColorGuide = true;
-
-   return outwin;
-}
-void _charToolDestroy(GUIWindow *_self) {
-   CharTool *self = (CharTool*)_self;
-   _fileDirectoryDestroy(&self->files);
-   if (self->imported) {
-      textureDestroy(self->imported);
-      textureDestroy(self->encodeTest);
-      checkedFree(self->importColorMap);
-      checkedFree(self->encodeTestPixels);
-      checkedFree(self->tilePaletteMap);
-   }
-
-   vecDestroy(ColorMapEntry)(self->importedColors);
-
-   int i = 0;
-   for (i = 0; i < 4; ++i) {
-      vecDestroy(SNESColor)(self->encodePalette[i]);
-   }
-}
-
-static int encTestLineCounter = 0, encTestLineTimer = 0;
-static void _updateEncodeTest(CharTool *self) {
-   ColorRGBA *pixels = self->encodeTestPixels;
-   int x = 0, y = 0;
-   Int2 impSize = textureGetSize(self->imported);
-
-   int pixelIdx = 0;//track the pixel in the target texture
-   for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8; ++y) {
-      for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8; ++x) {
-         ColorRGBA c = { 0 };
-
-         //skip poitential pixels outside the imported image
-         if ( y >= 0 && x >= 0 && y < impSize.y && x < impSize.x) {
-            int mapIdx = y * impSize.x + x;
-            int colorIndex = self->importColorMap[mapIdx];
-
-            int tileX = (x - self->optXOffset) / 8;
-            int tileY = (y - self->optYOffset) / 8;
-            int tileIdx = tileY * self->optXTileCount + tileX;
-            int tilePalette = self->tilePaletteMap[tileIdx];
-
-            //skip transparent
-            if (colorIndex >= 0) {
-               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
-               boolean selected = false;
-               if (colorIndex == self->selectedColorLink) {
-                  if (tilePalette == self->optCurrentPalette && encTestLineCounter % 2 && self->optShowColorGuide) {
-                     c = (ColorRGBA) { 0, 255, 0, 255 };
-                     selected = true;
-                  }
-               }
-
-               if (!selected) {
-                  if (entry->encodingIndex[tilePalette] > 0) {
-                     SNESColor *ec = vecAt(SNESColor)(self->encodePalette[tilePalette], entry->encodingIndex[tilePalette]);
-                     c = snesColorConverTo24Bit(*ec);
-                  }
-                  else if (entry->encodingIndex[tilePalette] == -1 && self->optShowColorGuide) {
-                     /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
-                     if (encTestLineCounter % 2) {
-                        c = (ColorRGBA) { 255, 0, 0, 255 };
-                     }
-                     else {
-                        c = snesColorConverTo24Bit(entry->color);
-                     }
-                  }
-               }
-            }
-         }
-
-         pixels[pixelIdx++] = c;
-      }
-   }
-
-   textureSetPixels(self->encodeTest, (byte*)self->encodeTestPixels);
-
-}
-
-// fills encodePalette withe first colors it finds in the encodetest subimage
-// and links these to the imported color set
-static void _smartFillEncodedPalette(CharTool *self) {
-   
-   int x = 0, y = 0;
-   Int2 impSize = textureGetSize(self->imported);
-
-   int pIdx = 0;//self->optCurrentPalette;
-   for (pIdx = 0; pIdx < 4; ++pIdx) {
-      size_t current = 1;
-
-      //clear existing
-      size_t paletteSize = vecSize(SNESColor)(self->encodePalette[pIdx]);
-      vecClear(SNESColor)(self->encodePalette[pIdx]);
-      vecResize(SNESColor)(self->encodePalette[pIdx], paletteSize, &(SNESColor){0});
-
-      //reset links
-      vecForEach(ColorMapEntry, entry, self->importedColors, {
-         entry->encodingIndex[pIdx] = -1;
-      });
-
-      for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8 && y < impSize.y; ++y) {
-         for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
-            int mapIdx = y * impSize.x + x;
-            int entryIndex = self->importColorMap[mapIdx];
-
-            if (y < 0 || x < 0) {
-               continue;
-            }
-
-            int tileX = (x - self->optXOffset) / 8;
-            int tileY = (y - self->optYOffset) / 8;
-            int tileIdx = tileY * self->optXTileCount + tileX;
-            int tilePalette = self->tilePaletteMap[tileIdx];
-
-            if (tilePalette != pIdx) {
-               continue;
-            }
-
-            if (entryIndex >= 0) {
-               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
-               //now fit it onto the palette and link it up
-
-               size_t p = 1;
-               for (p = 1; p < current; ++p) {
-                  SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette[pIdx], p);
-                  if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
-                     //already found
-                     break;
-                  }
-               }
-
-               if (p == current) {
-                  SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette[pIdx], current);
-                  *currentColor = entry->color;
-                  entry->encodingIndex[pIdx] = current;
-                  ++current;
-               }
-
-               if (current >= paletteSize) {
-                  break;
-               }
-            }
-         }
-
-         if (current >= paletteSize) {
-            break;
-         }
-      }
-
-   }
-
-
-   
-}
-
-static void _updateEncodeTestSize(CharTool *self) {
-   if (!self->imported) {
-      return;
-   }
-
-
-   if (self->encodeTest) {
-      textureDestroy(self->encodeTest);
-      checkedFree(self->encodeTestPixels);
-      checkedFree(self->tilePaletteMap);
-   }
-
-   Int2 encTestSize = { self->optXTileCount * 8, self->optYTileCount * 8 };
-   self->encodeTestPixels = checkedCalloc(1, encTestSize.x * encTestSize.y * sizeof(ColorRGBA));
-   self->encodeTest = textureCreateCustom(encTestSize.x, encTestSize.y, RepeatType_Clamp, FilterType_Nearest);
-   self->tilePaletteMap = checkedCalloc(self->optXTileCount * self->optYTileCount, sizeof(byte));
-}
-
-//Import a texture from a file update all options and such back to normal
-static void _importTextureFromFile(CharTool *self, String *file) {
-   TextureRequest request = {
-      .repeatType = RepeatType_Clamp,
-      .filterType = FilterType_Nearest,
-      .path = stringIntern(c_str(file))
-   };
-
-   Texture *imported = textureCreate(request);
-   if (!imported) {
-      //TODO: Show failure message
-      return;
-   }
-
-   //free existing buffers
-   if (self->imported) {
-      textureDestroy(self->imported);
-      checkedFree(self->importColorMap);
-   }
-
-   self->imported = imported;
-   Int2 texSize = textureGetSize(self->imported);
-
-   self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
-   self->optXOffset = 0;
-   self->optYOffset = 0;
-   self->optXTileCount = texSize.x / 8 + (texSize.x % 8 ? 1 : 0);
-   self->optYTileCount = texSize.y / 8 + (texSize.y % 8 ? 1 : 0);
-   self->selectedColorLink = -1;
-
-   _updateEncodeTestSize(self);
-   _getUniqueColors(self->imported, self->importedColors, self->importColorMap);
-
-   vecForEach(ColorMapEntry, entry, self->importedColors, {
-      int i = 0;
-      for (i = 0; i < 4; ++i) {
-         entry->encodingIndex[i] = -1;
-      }
-      
-   });
-
-   _smartFillEncodedPalette(self);
-}
-
-
+static GUIWindow *_charToolCreate(GUI *gui);
 
 void _createWindows(GUI *self) {
    self->viewer = guiWindowCreate(self, "Viewer");
@@ -1245,6 +852,439 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
    nk_end(ctx);
 }
 
+static void _updateDialog(GUIWindowPtr *win, AppData *data, vec(GUIWindowPtr) *remList) {
+   GUIWindow *dlg = *win;
+   struct nk_context *ctx = &dlg->parent->ctx;
+
+   dlg->update(dlg, data);
+
+   if (nk_window_is_hidden(ctx, c_str(dlg->name))) {
+      nk_window_close(ctx, c_str(dlg->name));
+      vecPushBack(GUIWindowPtr)(remList, win);
+   }
+}
+
+static int encTestLineCounter = 0, encTestLineTimer = 0;
+void guiUpdate(GUI *self, AppData *data) {
+   _viewerUpdate(self->viewer, data);
+   _optionsUpdate(self->options, data);
+   _taskBarUpdate(self->taskBar, data);
+   _logSpudUpdate(self->logSpud, data);
+
+   vec(GUIWindowPtr) *remList = vecCreate(GUIWindowPtr)(NULL);
+   vecForEach(GUIWindowPtr, win, self->dialogs, {
+      _updateDialog(win, data, remList);
+   });
+
+   vecForEach(GUIWindowPtr, win, remList, {
+      vecRemove(GUIWindowPtr)(self->dialogs, win);
+   });
+
+   vecDestroy(GUIWindowPtr)(remList);
+
+   //update flash timers
+   if (encTestLineTimer++ % 30 == 0) {
+      ++encTestLineCounter;
+   }
+}
+
+#pragma endregion
+
+#pragma region Character Importer
+
+typedef struct {
+   SNESColor color;
+   int encodingIndex[4];  //index in the encode palette to use for the encode
+}ColorMapEntry;
+
+#define VectorT ColorMapEntry
+#include "libutils/Vector_Create.h"
+
+#define VectorT SNESColor
+#include "libutils/Vector_Create.h"
+
+//colormap is a texture-sized pre-allocated array of ints for putting the pixel indices into the output palette
+static void _getUniqueColors(Texture *tex, vec(ColorMapEntry) *out, int *colorMap) {
+   const ColorRGBA *pixels = textureGetPixels(tex);
+   Int2 sz = textureGetSize(tex);
+   int x, y;
+
+   vecClear(ColorMapEntry)(out);
+   for (y = 0; y < sz.y; ++y) {
+      for (x = 0; x < sz.x; ++x) {
+         int idx = y*sz.x + x;
+         ColorRGBA c = pixels[idx];
+         if (c.a == 255) {
+            SNESColor bit15 = snesColorConvertFrom24Bit(c);
+            byte2 raw = *(byte2*)&bit15;
+
+            boolean found = false;
+            int mapColor = 0;
+            vecForEach(ColorMapEntry, other, out, {
+               if (raw == *(byte2*)&other->color) {
+                  found = true;
+                  colorMap[idx] = mapColor;
+                  break;
+               }
+            ++mapColor;
+            });
+
+            if (!found) {
+               ColorMapEntry newEntry = { 0 };
+               newEntry.color = bit15;
+               vecPushBack(ColorMapEntry)(out, &newEntry);
+               colorMap[idx] = mapColor;
+            }
+         }
+         else {
+            colorMap[idx] = -1;
+         }
+      }
+   }
+}
+
+
+typedef struct FileDirectory_t FileDirectory;
+#define VectorTPart FileDirectory
+#include "libutils/Vector_Decl.h"
+
+typedef struct FileDirectory_t {
+   vec(StringPtr) *files;
+   vec(FileDirectory) *children;
+   String *path, *name;
+}FileDirectory;
+
+#define VectorTPart FileDirectory
+#include "libutils/Vector_Impl.h"
+
+static void _fileDirectoryDestroy(FileDirectory *self) {
+   stringDestroy(self->path);
+   stringDestroy(self->name);
+   vecDestroy(StringPtr)(self->files);
+   vecDestroy(FileDirectory)(self->children);
+}
+
+static void _fileDirectoryInit(FileDirectory *self, const char *path) {
+   self->path = stringCreate(path);
+   self->name = stringGetFilename(self->path);
+   self->children = vecCreate(FileDirectory)(&_fileDirectoryDestroy);
+   self->files = vecCreate(StringPtr)(&stringPtrDestroy);
+}
+
+
+typedef enum {
+   ColorOption4,
+   ColorOption16,
+   ColorOption256
+}e_ColorOptions;
+static const char* ColorOptions[3] = { "4-Color", "16-Color", "256-Color" };
+static int _colorCountFromOption(e_ColorOptions opt) {
+   switch (opt) {
+   case ColorOption4: return 4;
+   case ColorOption16: return 16;
+   case ColorOption256: return 256;
+   default: return 0;
+   }
+}
+
+typedef struct {
+   GUIWindow base;
+
+   FileDirectory files;
+   boolean filesLoaded;
+
+   Texture
+      //the imported image file
+      *imported,
+
+      //the image showing how it will be encoding
+      *encodeTest;
+
+   // the set of unique colors in imported, contains the 
+   // original color and an index into the encode palette to map to
+   vec(ColorMapEntry) *importedColors;
+
+   // same size as imported texture, each pixel is an index into the importedColors vector
+   int *importColorMap;
+
+   //1 byte per 8x8 tile of which of the 4 palettes to use
+   byte *tilePaletteMap;
+
+   // pixel buffer sent off to update encodeTest
+   ColorRGBA *encodeTestPixels;
+
+   // palette used to encode the final image
+   vec(SNESColor) *encodePalette[4];
+
+   // how many colors in the encode palette
+   e_ColorOptions colorOption;
+
+   //index into the unique colorEntries to use for  linking
+   int selectedColorLink, selectedEncodeColor;
+
+   //offset of impoirted image and how many 8x8 tiles to grab for the encode
+   int optXOffset, optYOffset, optXTileCount, optYTileCount;
+   int optShowGrid;
+   int optShowColorGuide;
+   int optCurrentPalette;
+   int optShowTilePalettes;
+
+   int paletteTileMode;
+   int paletteTileModeClick;
+   Int2 paletteTileModeClickStart;
+
+   float grp1Resize, grp2Resize;
+
+}CharTool;
+
+static void _charToolUpdate(GUIWindow *self, AppData *data);
+static void _charToolDestroy(GUIWindow *self);
+
+GUIWindow *_charToolCreate(GUI *gui) {
+   CharTool *out = checkedCalloc(1, sizeof(CharTool));
+   GUIWindow *outwin = (GUIWindow*)out;
+
+   outwin->parent = gui;
+   outwin->name = stringCreate("CharTool|");
+
+   char buff[8] = { 0 };
+   sprintf(buff, "%i|", gui->charToolCount++);
+   stringConcat(outwin->name, buff);
+
+   outwin->destroy = &_charToolDestroy;
+   outwin->update = &_charToolUpdate;
+
+   _fileDirectoryInit(&out->files, ".");
+
+   out->importedColors = vecCreate(ColorMapEntry)(NULL);
+
+   out->colorOption = ColorOption16;
+
+   int i = 0;
+   for (i = 0; i < 4; ++i) {
+      out->encodePalette[i] = vecCreate(SNESColor)(NULL);
+      vecResize(SNESColor)(out->encodePalette[i], _colorCountFromOption(out->colorOption), &(SNESColor){0});
+   }
+
+
+   out->selectedColorLink = -1;
+   out->optShowColorGuide = true;
+
+   return outwin;
+}
+void _charToolDestroy(GUIWindow *_self) {
+   CharTool *self = (CharTool*)_self;
+   _fileDirectoryDestroy(&self->files);
+   if (self->imported) {
+      textureDestroy(self->imported);
+      textureDestroy(self->encodeTest);
+      checkedFree(self->importColorMap);
+      checkedFree(self->encodeTestPixels);
+      checkedFree(self->tilePaletteMap);
+   }
+
+   vecDestroy(ColorMapEntry)(self->importedColors);
+
+   int i = 0;
+   for (i = 0; i < 4; ++i) {
+      vecDestroy(SNESColor)(self->encodePalette[i]);
+   }
+}
+
+static void _updateEncodeTest(CharTool *self) {
+   ColorRGBA *pixels = self->encodeTestPixels;
+   int x = 0, y = 0;
+   Int2 impSize = textureGetSize(self->imported);
+
+   int pixelIdx = 0;//track the pixel in the target texture
+   for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8; ++y) {
+      for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8; ++x) {
+         ColorRGBA c = { 0 };
+
+         //skip poitential pixels outside the imported image
+         if (y >= 0 && x >= 0 && y < impSize.y && x < impSize.x) {
+            int mapIdx = y * impSize.x + x;
+            int colorIndex = self->importColorMap[mapIdx];
+
+            int tileX = (x - self->optXOffset) / 8;
+            int tileY = (y - self->optYOffset) / 8;
+            int tileIdx = tileY * self->optXTileCount + tileX;
+            int tilePalette = self->tilePaletteMap[tileIdx];
+
+            //skip transparent
+            if (colorIndex >= 0) {
+               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, colorIndex);
+               boolean selected = false;
+               if (colorIndex == self->selectedColorLink) {
+                  if (tilePalette == self->optCurrentPalette && encTestLineCounter % 2 && self->optShowColorGuide) {
+                     c = (ColorRGBA) { 0, 255, 0, 255 };
+                     selected = true;
+                  }
+               }
+
+               if (!selected) {
+                  if (entry->encodingIndex[tilePalette] > 0) {
+                     SNESColor *ec = vecAt(SNESColor)(self->encodePalette[tilePalette], entry->encodingIndex[tilePalette]);
+                     c = snesColorConverTo24Bit(*ec);
+                  }
+                  else if (entry->encodingIndex[tilePalette] == -1 && self->optShowColorGuide) {
+                     /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
+                     if (encTestLineCounter % 2) {
+                        c = (ColorRGBA) { 255, 0, 0, 255 };
+                     }
+                     else {
+                        c = snesColorConverTo24Bit(entry->color);
+                     }
+                  }
+               }
+            }
+         }
+
+         pixels[pixelIdx++] = c;
+      }
+   }
+
+   textureSetPixels(self->encodeTest, (byte*)self->encodeTestPixels);
+
+}
+
+// fills encodePalette withe first colors it finds in the encodetest subimage
+// and links these to the imported color set
+static void _smartFillEncodedPalette(CharTool *self) {
+
+   int x = 0, y = 0;
+   Int2 impSize = textureGetSize(self->imported);
+
+   int pIdx = 0;//self->optCurrentPalette;
+   for (pIdx = 0; pIdx < 4; ++pIdx) {
+      size_t current = 1;
+
+      //clear existing
+      size_t paletteSize = vecSize(SNESColor)(self->encodePalette[pIdx]);
+      vecClear(SNESColor)(self->encodePalette[pIdx]);
+      vecResize(SNESColor)(self->encodePalette[pIdx], paletteSize, &(SNESColor){0});
+
+      //reset links
+      vecForEach(ColorMapEntry, entry, self->importedColors, {
+         entry->encodingIndex[pIdx] = -1;
+      });
+
+      for (y = self->optYOffset; y < self->optYOffset + self->optYTileCount * 8 && y < impSize.y; ++y) {
+         for (x = self->optXOffset; x < self->optXOffset + self->optXTileCount * 8 && x < impSize.x; ++x) {
+            int mapIdx = y * impSize.x + x;
+            int entryIndex = self->importColorMap[mapIdx];
+
+            if (y < 0 || x < 0) {
+               continue;
+            }
+
+            int tileX = (x - self->optXOffset) / 8;
+            int tileY = (y - self->optYOffset) / 8;
+            int tileIdx = tileY * self->optXTileCount + tileX;
+            int tilePalette = self->tilePaletteMap[tileIdx];
+
+            if (tilePalette != pIdx) {
+               continue;
+            }
+
+            if (entryIndex >= 0) {
+               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIndex);
+               //now fit it onto the palette and link it up
+
+               size_t p = 1;
+               for (p = 1; p < current; ++p) {
+                  SNESColor colorAt = *vecAt(SNESColor)(self->encodePalette[pIdx], p);
+                  if (*(byte2*)&entry->color == *(byte2*)&colorAt) {
+                     //already found
+                     break;
+                  }
+               }
+
+               if (p == current) {
+                  SNESColor *currentColor = vecAt(SNESColor)(self->encodePalette[pIdx], current);
+                  *currentColor = entry->color;
+                  entry->encodingIndex[pIdx] = current;
+                  ++current;
+               }
+
+               if (current >= paletteSize) {
+                  break;
+               }
+            }
+         }
+
+         if (current >= paletteSize) {
+            break;
+         }
+      }
+
+   }
+
+
+
+}
+
+static void _updateEncodeTestSize(CharTool *self) {
+   if (!self->imported) {
+      return;
+   }
+
+
+   if (self->encodeTest) {
+      textureDestroy(self->encodeTest);
+      checkedFree(self->encodeTestPixels);
+      checkedFree(self->tilePaletteMap);
+   }
+
+   Int2 encTestSize = { self->optXTileCount * 8, self->optYTileCount * 8 };
+   self->encodeTestPixels = checkedCalloc(1, encTestSize.x * encTestSize.y * sizeof(ColorRGBA));
+   self->encodeTest = textureCreateCustom(encTestSize.x, encTestSize.y, RepeatType_Clamp, FilterType_Nearest);
+   self->tilePaletteMap = checkedCalloc(self->optXTileCount * self->optYTileCount, sizeof(byte));
+}
+
+//Import a texture from a file update all options and such back to normal
+static void _importTextureFromFile(CharTool *self, String *file) {
+   TextureRequest request = {
+      .repeatType = RepeatType_Clamp,
+      .filterType = FilterType_Nearest,
+      .path = stringIntern(c_str(file))
+   };
+
+   Texture *imported = textureCreate(request);
+   if (!imported) {
+      //TODO: Show failure message
+      return;
+   }
+
+   //free existing buffers
+   if (self->imported) {
+      textureDestroy(self->imported);
+      checkedFree(self->importColorMap);
+   }
+
+   self->imported = imported;
+   Int2 texSize = textureGetSize(self->imported);
+
+   self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
+   self->optXOffset = 0;
+   self->optYOffset = 0;
+   self->optXTileCount = texSize.x / 8 + (texSize.x % 8 ? 1 : 0);
+   self->optYTileCount = texSize.y / 8 + (texSize.y % 8 ? 1 : 0);
+   self->selectedColorLink = -1;
+
+   _updateEncodeTestSize(self);
+   _getUniqueColors(self->imported, self->importedColors, self->importColorMap);
+
+   vecForEach(ColorMapEntry, entry, self->importedColors, {
+      int i = 0;
+   for (i = 0; i < 4; ++i) {
+      entry->encodingIndex[i] = -1;
+   }
+
+   });
+
+   _smartFillEncodedPalette(self);
+}
 
 static void _loadFiles(FileDirectory *root) {
    vec(StringPtr) *dirs = 0, *files = 0;
@@ -1252,20 +1292,20 @@ static void _loadFiles(FileDirectory *root) {
    deviceContextListFiles(path, DC_FILE_DIR_ONLY, &dirs, NULL);
    deviceContextListFiles(path, DC_FILE_FILE_ONLY, &files, "png");
 
-   if (dirs) { 
-      vecForEach(StringPtr, str, dirs, { 
-         FileDirectory newDir = {0};
-         _fileDirectoryInit(&newDir, c_str(*str));
-         _loadFiles(&newDir);
-         vecPushBack(FileDirectory)(root->children, &newDir);
+   if (dirs) {
+      vecForEach(StringPtr, str, dirs, {
+         FileDirectory newDir = { 0 };
+      _fileDirectoryInit(&newDir, c_str(*str));
+      _loadFiles(&newDir);
+      vecPushBack(FileDirectory)(root->children, &newDir);
       });
-      vecDestroy(StringPtr)(dirs); 
+      vecDestroy(StringPtr)(dirs);
    }
 
-   if (files) { 
-      vecForEach(StringPtr, str, files, { 
+   if (files) {
+      vecForEach(StringPtr, str, files, {
          String *strcpy = stringCopy(*str);
-         vecPushBack(StringPtr)(root->files, &strcpy);
+      vecPushBack(StringPtr)(root->files, &strcpy);
       });
       vecDestroy(StringPtr)(files);
    }
@@ -1274,17 +1314,17 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
    String *out = NULL;
    vecForEach(FileDirectory, dir, root->children, {
 
-      if (nk_tree_push_id(ctx, NK_TREE_TAB, c_str(dir->name), NK_MINIMIZED, (int)dir)) {         
+      if (nk_tree_push_id(ctx, NK_TREE_TAB, c_str(dir->name), NK_MINIMIZED, (int)dir)) {
          out = _buildFileTree(ctx, dir);
 
-         vecForEach(StringPtr, f, dir->files, {
+         vecForEach(StringPtr, f, dir->files,{
             String *justfile = stringGetFilename(*f);
-            nk_layout_row_dynamic(ctx, 20, 1);
-            if (nk_button_label(ctx, c_str(justfile))) {
-               out = *f;
-            }
-            stringDestroy(justfile);
-         });         
+         nk_layout_row_dynamic(ctx, 20, 1);
+         if (nk_button_label(ctx, c_str(justfile))) {
+            out = *f;
+         }
+         stringDestroy(justfile);
+         });
 
          nk_tree_pop(ctx);
       }
@@ -1306,7 +1346,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       (winSize.y - dlgSize.y) / 2.0f,
       (float)dlgSize.x, (float)dlgSize.y);
 
-   static nk_flags winFlags = 
+   static nk_flags winFlags =
       NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER |
       NK_WINDOW_TITLE | NK_WINDOW_MOVABLE |
       NK_WINDOW_CLOSABLE | NK_WINDOW_SCALABLE;
@@ -1315,7 +1355,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    const float optGroupWidth = 200.0f;
    const float spacer = 10.0f;
 
-   if (nk_begin(ctx, c_str(selfwin->name), winRect, winFlags)){
+   if (nk_begin(ctx, c_str(selfwin->name), winRect, winFlags)) {
 
       //menu
       nk_menubar_begin(ctx);
@@ -1338,7 +1378,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
          nk_menu_end(ctx);
       }
-      else if (self->filesLoaded) {         
+      else if (self->filesLoaded) {
          _fileDirectoryDestroy(&self->files);
          _fileDirectoryInit(&self->files, ".");
          self->filesLoaded = false;
@@ -1349,14 +1389,14 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       //split panel
       struct nk_rect area = nk_window_get_content_region(ctx);
       struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
-      float imgGroupWidth = ( area.w - optGroupWidth - (spacer * 2) - 20) / 2.0f;
+      float imgGroupWidth = (area.w - optGroupWidth - (spacer * 2) - 20) / 2.0f;
 
       nk_layout_row_begin(ctx, NK_STATIC, area.h - palHeight - 8, 5);
       nk_layout_row_push(ctx, imgGroupWidth + self->grp1Resize);
       if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
-            struct nk_panel *pnl = nk_window_get_panel(ctx);      
+            struct nk_panel *pnl = nk_window_get_panel(ctx);
 
             struct nk_image img = nk_image_id((int)textureGetGLHandle(self->imported));
             Int2 impSize = textureGetSize(self->imported);
@@ -1390,7 +1430,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       if (nk_group_begin(ctx, "Encoding", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
 
          if (self->imported) {
-            struct nk_panel *pnl = nk_window_get_panel(ctx);    
+            struct nk_panel *pnl = nk_window_get_panel(ctx);
 
             struct nk_image img = nk_image_id((int)textureGetGLHandle(self->encodeTest));
             Int2 imgSize = textureGetSize(self->encodeTest);
@@ -1404,7 +1444,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                bounds.w = bounds.h * ratio;
                bounds.w *= 1.16666f;
                nk_draw_image(canvas, bounds, &img, nk_rgb(255, 255, 255));
-               
+
                float tWidth = bounds.w / self->optXTileCount;
                float tHeight = bounds.h / self->optYTileCount;
                struct nk_color lineColor = nk_rgb(0, 0, 255);
@@ -1419,13 +1459,13 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                         }
 
                         nk_stroke_rect(canvas, nk_rect(
-                           (float)self->paletteTileModeClickStart.x, 
+                           (float)self->paletteTileModeClickStart.x,
                            (float)self->paletteTileModeClickStart.y,
                            in->mouse.pos.x - self->paletteTileModeClickStart.x,
                            in->mouse.pos.y - self->paletteTileModeClickStart.y
-                           ), 0, 3, lineColor);
+                        ), 0, 3, lineColor);
                      }
-                     else if(self->paletteTileModeClick) {
+                     else if (self->paletteTileModeClick) {
                         self->paletteTileModeClick = false;
 
                         int xTile = (int)((self->paletteTileModeClickStart.x - bounds.x) / tWidth);
@@ -1436,7 +1476,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                         for (x = 0; x < xTileCount; ++x) {
                            for (y = 0; y < yTileCount; ++y) {
                               Int2 tile = { x + xTile, y + yTile };
-                              if (tile.x >= 0 && tile.x < self->optXTileCount && 
+                              if (tile.x >= 0 && tile.x < self->optXTileCount &&
                                  tile.y >= 0 && tile.y < self->optYTileCount) {
                                  byte *palIndex = self->tilePaletteMap + (tile.y * self->optXTileCount + tile.x);
                                  *palIndex = self->optCurrentPalette;
@@ -1475,11 +1515,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                }
 
 
-            }       
+            }
          }
 
          nk_group_end(ctx);
-      }      
+      }
 
       nk_layout_row_push(ctx, spacer);
       nk_spacing(ctx, 1);
@@ -1487,7 +1527,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       nk_layout_row_push(ctx, optGroupWidth);
       struct nk_panel *grpPnl = nk_window_get_panel(ctx);
 
-      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {  
+      if (nk_group_begin(ctx, "Options", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
          if (nk_tree_push(ctx, NK_TREE_NODE, "Encoding", NK_MAXIMIZED)) {
             if (self->imported) {
                nk_layout_row_dynamic(ctx, 20, 1);
@@ -1495,7 +1535,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                if (choice != self->colorOption) {
                   self->colorOption = choice;
                   self->selectedEncodeColor = 0;
-                  
+
                   int i = 0;
                   for (i = 0; i < 4; ++i) {
                      vecResize(SNESColor)(self->encodePalette[i], _colorCountFromOption(self->colorOption), &(SNESColor){0});
@@ -1545,10 +1585,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   _smartFillEncodedPalette(self);
                }
 
-               
 
-               if(nk_selectable_label(ctx, "Tile Palette Mode", NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE, &self->paletteTileMode)) {
-                  self->optShowTilePalettes =  self->paletteTileMode;
+
+               if (nk_selectable_label(ctx, "Tile Palette Mode", NK_TEXT_ALIGN_CENTERED | NK_TEXT_ALIGN_MIDDLE, &self->paletteTileMode)) {
+                  self->optShowTilePalettes = self->paletteTileMode;
                }
 
                nk_label(ctx, "Current Palette", NK_TEXT_ALIGN_LEFT);
@@ -1566,11 +1606,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
             nk_tree_pop(ctx);
          }
-         
+
          if (nk_tree_push(ctx, NK_TREE_NODE, "Edit Color", NK_MINIMIZED)) {
             int pIdx = self->optCurrentPalette;
             SNESColor *selected = vecAt(SNESColor)(self->encodePalette[pIdx], self->selectedEncodeColor);
-            
+
             float layout[3] = { 15.0f, 60.0f, 60.0f };
             nk_layout_row(ctx, NK_STATIC, 20.0f, 3, layout);
 
@@ -1608,13 +1648,13 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
             nk_tree_pop(ctx);
          }
-         
+
          if (nk_tree_push(ctx, NK_TREE_NODE, "Palette", NK_MINIMIZED)) {
             struct nk_panel *pnl = nk_window_get_panel(ctx);
-            
+
             nk_layout_row_dynamic(ctx, 500.0f, 1);
             if (nk_group_begin(ctx, "palGroup", NK_WINDOW_BORDER)) {
-              nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT| NK_TEXT_ALIGN_MIDDLE);               
+               nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT | NK_TEXT_ALIGN_MIDDLE);
                nk_layout_row_dynamic(ctx, 20, 1);
 
                nk_button_label(ctx, "Paletes!");
@@ -1652,30 +1692,30 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   bounds.w = palWidth;
                   bounds.h = palHeight - 5;
                }
-               
-               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
-                  self->selectedColorLink = cIdx;
-               }
 
-               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_RIGHT, bounds)) {
-                  if (self->selectedEncodeColor > 0) {
-                     SNESColor *selCol = vecAt(SNESColor)(self->encodePalette[self->optCurrentPalette], self->selectedEncodeColor);
-                     *selCol = c->color;
-                  }
-                  allowRightClickCancel = false;
-               }
+            if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
+               self->selectedColorLink = cIdx;
+            }
 
-               nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(c->color)));
-
-               if (cIdx == self->selectedColorLink) {
-                  nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
+            if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_RIGHT, bounds)) {
+               if (self->selectedEncodeColor > 0) {
+                  SNESColor *selCol = vecAt(SNESColor)(self->encodePalette[self->optCurrentPalette], self->selectedEncodeColor);
+                  *selCol = c->color;
                }
+               allowRightClickCancel = false;
+            }
 
-               bounds.x += palWidth;
-               if (++rowSize >= perRow) {
-                  rowSize = 0;
-               }
-               ++cIdx;
+            nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(c->color)));
+
+            if (cIdx == self->selectedColorLink) {
+               nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
+            }
+
+            bounds.x += palWidth;
+            if (++rowSize >= perRow) {
+               rowSize = 0;
+            }
+            ++cIdx;
             });
 
             Int2 impSize = textureGetSize(self->imported);
@@ -1683,10 +1723,10 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
             nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Colors: %i", vecSize(ColorMapEntry)(self->importedColors));
             nk_labelf(ctx, NK_TEXT_ALIGN_LEFT, "Size: %i x %i", impSize.x, impSize.y);
          }
-         
+
          nk_group_end(ctx);
       }
-      
+
       nk_layout_row_push(ctx, spacer);
       nk_spacing(ctx, 1);
 
@@ -1709,49 +1749,49 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                bounds.h = palHeight - 5;
             }
 
-            if (cIdx == 0) {
-               //draw the transparency square
-               nk_fill_rect(canvas, bounds, 0, nk_rgb(255, 255, 255));
-               struct nk_rect halfBounds = bounds;
+         if (cIdx == 0) {
+            //draw the transparency square
+            nk_fill_rect(canvas, bounds, 0, nk_rgb(255, 255, 255));
+            struct nk_rect halfBounds = bounds;
 
-               halfBounds.w /= 2.0f;
-               halfBounds.h /= 2.0f;
-               nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
+            halfBounds.w /= 2.0f;
+            halfBounds.h /= 2.0f;
+            nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
 
-               halfBounds.x += halfBounds.w;
-               halfBounds.y += halfBounds.h;
-               nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
-            }
-            else {
-               nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(*c)));
-            }
+            halfBounds.x += halfBounds.w;
+            halfBounds.y += halfBounds.h;
+            nk_fill_rect(canvas, halfBounds, 0, nk_rgb(128, 128, 128));
+         }
+         else {
+            nk_fill_rect(canvas, bounds, 0, _colorToNKColor(snesColorConverTo24Bit(*c)));
+         }
 
-            if (cIdx == self->selectedEncodeColor) {
-               nk_stroke_rect(canvas, bounds, 3, 4, nk_rgb(255, 100, 100));
-            }
+         if (cIdx == self->selectedEncodeColor) {
+            nk_stroke_rect(canvas, bounds, 3, 4, nk_rgb(255, 100, 100));
+         }
 
-            if (self->selectedColorLink >= 0) {
-               ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, self->selectedColorLink);
+         if (self->selectedColorLink >= 0) {
+            ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, self->selectedColorLink);
 
-               if (entry->encodingIndex[self->optCurrentPalette] == cIdx) {
-                  nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
-               }
-
-               if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
-                  entry->encodingIndex[self->optCurrentPalette] = cIdx;
-               }
+            if (entry->encodingIndex[self->optCurrentPalette] == cIdx) {
+               nk_stroke_rect(canvas, bounds, 0, 3, nk_rgb(0, 255, 0));
             }
 
             if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
-               self->selectedEncodeColor = cIdx;
-            }            
-            
-            bounds.x += palWidth;
-            if (++rowSize >= perRow) {
-               rowSize = 0;
+               entry->encodingIndex[self->optCurrentPalette] = cIdx;
             }
+         }
 
-            ++cIdx;
+         if (nk_input_is_mouse_click_in_rect(in, NK_BUTTON_LEFT, bounds)) {
+            self->selectedEncodeColor = cIdx;
+         }
+
+         bounds.x += palWidth;
+         if (++rowSize >= perRow) {
+            rowSize = 0;
+         }
+
+         ++cIdx;
          });
 
          nk_group_end(ctx);
@@ -1788,13 +1828,13 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          self->optShowTilePalettes = false;
       }
    }
-   
+
    nk_end(ctx);
 
-   
+
    /*
 
-   
+
    static boolean refreshFiles = true;
    static String *selectedFile = NULL;
    static Texture *ogTex = NULL;
@@ -1803,248 +1843,212 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
 
    if (nk_begin(ctx, c_str(selfwin->name), winRect,
-      NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE))
+   NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE))
    {
-      static vec(StringPtr) *files = NULL;
+   static vec(StringPtr) *files = NULL;
 
-      //if (!files || refreshFiles) {
-      //   if (files) {
-      //      vecDestroy(StringPtr)(files);
-      //      selectedFile = NULL;
-      //      files = NULL;
-      //   }
-      //   deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
-      //   refreshFiles = false;
-      //}
+   //if (!files || refreshFiles) {
+   //   if (files) {
+   //      vecDestroy(StringPtr)(files);
+   //      selectedFile = NULL;
+   //      files = NULL;
+   //   }
+   //   deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
+   //   refreshFiles = false;
+   //}
 
-      int i = 0;
-      struct nk_rect winBounds = nk_window_get_content_region(ctx);
+   int i = 0;
+   struct nk_rect winBounds = nk_window_get_content_region(ctx);
 
-      nk_layout_space_begin(ctx, NK_STATIC, 410, 64);
-      //nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5));
-      //if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-      //   vecForEach(StringPtr, str, files, {
-      //      nk_layout_row_dynamic(ctx, 20, 1);
-      //   if (nk_button_label(ctx, c_str(*str))) {
+   nk_layout_space_begin(ctx, NK_STATIC, 410, 64);
+   //nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5));
+   //if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+   //   vecForEach(StringPtr, str, files, {
+   //      nk_layout_row_dynamic(ctx, 20, 1);
+   //   if (nk_button_label(ctx, c_str(*str))) {
 
-      //      if (*str != selectedFile) {
-      //         selectedFile = *str;
+   //      if (*str != selectedFile) {
+   //         selectedFile = *str;
 
-      //         TextureRequest request = {
-      //            .repeatType = RepeatType_Clamp,
-      //            .filterType = FilterType_Nearest,
-      //            .path = stringIntern(c_str(selectedFile))
-      //         };
-
-
-      //         ogTex = textureManagerGetTexture(data->textureManager, request);
-
-      //         _processImage(ogTex, ogPalette);
-      //         memcpy(resPalette, ogPalette, sizeof(SNESColor) * 16);
-      //      }
-
-      //   }
-      //   });
-      //   nk_group_end(ctx);
-      //}
-
-      nk_layout_space_push(ctx, nk_rect(190, 0, 300, 300));
-      if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-         if (ogTex) {
-            nk_layout_row_begin(ctx, NK_DYNAMIC, 250, 1);
-            nk_layout_row_push(ctx, 1.0f);
-
-            enum nk_widget_layout_states state;
-            struct nk_rect bounds;
-            state = nk_widget(&bounds, ctx);
-            if (state) {
-               struct nk_image img = nk_image_id((int)textureGetGLHandle(ogTex));
-               nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
-            }
-            nk_layout_row_end(ctx);
-         }
-
-         nk_group_end(ctx);
-      }
-
-      nk_layout_space_push(ctx, nk_rect(190, 310, 300, 70));
-      if (nk_group_begin(ctx, "Unique Colors", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-         struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
-
-         //palette table
-         const float palRowHeight = 20, palRectWidth = 17;
-         nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
-         nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
-
-         nk_layout_row_push(ctx, palRectWidth * 16);
-
-         enum nk_widget_layout_states state;
-         struct nk_rect bounds;
-
-         state = nk_widget(&bounds, ctx);
-         if (state) {
-            int x = 0;
-
-            struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-            pBounds.h /= 2;
-            pBounds.w /= 2;
-
-            nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
-            pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
-            pBounds.x -= palRectWidth / 2; pBounds.y += palRowHeight / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
-            pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
+   //         TextureRequest request = {
+   //            .repeatType = RepeatType_Clamp,
+   //            .filterType = FilterType_Nearest,
+   //            .path = stringIntern(c_str(selectedFile))
+   //         };
 
 
-            for (x = 1; x < 16; ++x) {
-               struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-               pBounds.x += x * palRectWidth;
-               ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
-               nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
+   //         ogTex = textureManagerGetTexture(data->textureManager, request);
 
-            }
-         }
+   //         _processImage(ogTex, ogPalette);
+   //         memcpy(resPalette, ogPalette, sizeof(SNESColor) * 16);
+   //      }
 
-         nk_layout_row_end(ctx);
-         nk_style_pop_vec2(ctx);
+   //   }
+   //   });
+   //   nk_group_end(ctx);
+   //}
 
+   nk_layout_space_push(ctx, nk_rect(190, 0, 300, 300));
+   if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+   if (ogTex) {
+   nk_layout_row_begin(ctx, NK_DYNAMIC, 250, 1);
+   nk_layout_row_push(ctx, 1.0f);
 
+   enum nk_widget_layout_states state;
+   struct nk_rect bounds;
+   state = nk_widget(&bounds, ctx);
+   if (state) {
+   struct nk_image img = nk_image_id((int)textureGetGLHandle(ogTex));
+   nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
+   }
+   nk_layout_row_end(ctx);
+   }
 
-         nk_group_end(ctx);
-      }
+   nk_group_end(ctx);
+   }
 
-      nk_layout_space_push(ctx, nk_rect(500, 0, 300, 300));
-      if (nk_group_begin(ctx, "Result", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+   nk_layout_space_push(ctx, nk_rect(190, 310, 300, 70));
+   if (nk_group_begin(ctx, "Unique Colors", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+   struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
-         nk_group_end(ctx);
-      }
+   //palette table
+   const float palRowHeight = 20, palRectWidth = 17;
+   nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
+   nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
 
-      nk_layout_space_push(ctx, nk_rect(500, 310, 300, 70));
-      if (nk_group_begin(ctx, "Encoded Palette", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+   nk_layout_row_push(ctx, palRectWidth * 16);
 
-         struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
+   enum nk_widget_layout_states state;
+   struct nk_rect bounds;
 
-         //palette table
-         const float palRowHeight = 20, palRectWidth = 17;
-         nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
-         nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
+   state = nk_widget(&bounds, ctx);
+   if (state) {
+   int x = 0;
 
+   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
+   pBounds.h /= 2;
+   pBounds.w /= 2;
 
-         nk_layout_row_push(ctx, palRectWidth * 16);
-
-         enum nk_widget_layout_states state;
-         struct nk_rect bounds;
-
-         state = nk_widget(&bounds, ctx);
-         if (state) {
-            int x = 0;
-            for (x = 0; x < 16; ++x) {
-
-               struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-               pBounds.x += x * palRectWidth;
-
-               ColorRGBA c = snesColorConverTo24Bit(resPalette[x]);
-               nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
-
-            }
-         }
-
-         nk_layout_row_end(ctx);
-         nk_style_pop_vec2(ctx);
-
-         nk_group_end(ctx);
-      }
-
-      nk_layout_space_push(ctx, nk_rect(600, 390, 200, 20));
-      if (nk_button_label(ctx, "Import")) {
-         if (ogTex) {
-            SNES *snes = data->snes;
-            memcpy(snes->cgram.objPalettes.palette16s[0].colors, resPalette, sizeof(SNESColor) * 16);
-
-            const ColorRGBA *pixels = textureGetPixels(ogTex);
-            Int2 sz = textureGetSize(ogTex);
-            int y = 0, x = 0, i = 0;
-
-            //Char16 *character = (Char16 *)&snes->vram;
-            //memset(character, 0, sizeof(*character));
-
-            int tileX = 0, tileY = 0;
-            Char16 *character = NULL;
+   nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
+   pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
+   pBounds.x -= palRectWidth / 2; pBounds.y += palRowHeight / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
+   pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
 
 
-            for (tileY = 0; tileY < 8; ++tileY) {
-               for (tileX = 0; tileX < 8; ++tileX) {
-                  character = (Char16 *)&snes->vram + tileY * 16 + tileX;
-                  memset(character, 0, sizeof(Char16));
+   for (x = 1; x < 16; ++x) {
+   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
+   pBounds.x += x * palRectWidth;
+   ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
+   nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
 
-                  for (y = 0; y < 8; ++y) {
-                     for (x = 0; x < 8; ++x) {
-                        ColorRGBA c = pixels[(y + tileY * 8)*sz.x + (x + tileX * 8)];
-                        if (c.a == 255) {
-                           SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+   }
+   }
 
-                           byte2 raw = *(byte2*)&bit15;
+   nk_layout_row_end(ctx);
+   nk_style_pop_vec2(ctx);
 
-                           for (i = 1; i < 16; ++i) {
-                              byte2 raw2 = *(byte2*)&resPalette[i];
 
-                              if (raw == raw2) {
-                                 //character += tileY * 16;
-                                 character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
-                                 character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
-                                 character->tiles[1].rows[y].planes[0] |= ((i & 4) >> 2) << x;
-                                 character->tiles[1].rows[y].planes[1] |= ((i & 8) >> 3) << x;
-                                 break;
-                              }
-                           }
-                        }
-                     }
-                  }
-               }
-            }
-         }
-      }
 
-      nk_layout_space_end(ctx);
+   nk_group_end(ctx);
+   }
+
+   nk_layout_space_push(ctx, nk_rect(500, 0, 300, 300));
+   if (nk_group_begin(ctx, "Result", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+   nk_group_end(ctx);
+   }
+
+   nk_layout_space_push(ctx, nk_rect(500, 310, 300, 70));
+   if (nk_group_begin(ctx, "Encoded Palette", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
+
+   struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
+
+   //palette table
+   const float palRowHeight = 20, palRectWidth = 17;
+   nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
+   nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
+
+
+   nk_layout_row_push(ctx, palRectWidth * 16);
+
+   enum nk_widget_layout_states state;
+   struct nk_rect bounds;
+
+   state = nk_widget(&bounds, ctx);
+   if (state) {
+   int x = 0;
+   for (x = 0; x < 16; ++x) {
+
+   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
+   pBounds.x += x * palRectWidth;
+
+   ColorRGBA c = snesColorConverTo24Bit(resPalette[x]);
+   nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
+
+   }
+   }
+
+   nk_layout_row_end(ctx);
+   nk_style_pop_vec2(ctx);
+
+   nk_group_end(ctx);
+   }
+
+   nk_layout_space_push(ctx, nk_rect(600, 390, 200, 20));
+   if (nk_button_label(ctx, "Import")) {
+   if (ogTex) {
+   SNES *snes = data->snes;
+   memcpy(snes->cgram.objPalettes.palette16s[0].colors, resPalette, sizeof(SNESColor) * 16);
+
+   const ColorRGBA *pixels = textureGetPixels(ogTex);
+   Int2 sz = textureGetSize(ogTex);
+   int y = 0, x = 0, i = 0;
+
+   //Char16 *character = (Char16 *)&snes->vram;
+   //memset(character, 0, sizeof(*character));
+
+   int tileX = 0, tileY = 0;
+   Char16 *character = NULL;
+
+
+   for (tileY = 0; tileY < 8; ++tileY) {
+   for (tileX = 0; tileX < 8; ++tileX) {
+   character = (Char16 *)&snes->vram + tileY * 16 + tileX;
+   memset(character, 0, sizeof(Char16));
+
+   for (y = 0; y < 8; ++y) {
+   for (x = 0; x < 8; ++x) {
+   ColorRGBA c = pixels[(y + tileY * 8)*sz.x + (x + tileX * 8)];
+   if (c.a == 255) {
+   SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
+
+   byte2 raw = *(byte2*)&bit15;
+
+   for (i = 1; i < 16; ++i) {
+   byte2 raw2 = *(byte2*)&resPalette[i];
+
+   if (raw == raw2) {
+   //character += tileY * 16;
+   character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
+   character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
+   character->tiles[1].rows[y].planes[0] |= ((i & 4) >> 2) << x;
+   character->tiles[1].rows[y].planes[1] |= ((i & 8) >> 3) << x;
+   break;
+   }
+   }
+   }
+   }
+   }
+   }
+   }
+   }
+   }
+
+   nk_layout_space_end(ctx);
    }
 
    nk_end(ctx);
    */
 }
 
-static void _updateDialog(GUIWindowPtr *win, AppData *data, vec(GUIWindowPtr) *remList) {
-   GUIWindow *dlg = *win;
-   struct nk_context *ctx = &dlg->parent->ctx;
-
-   dlg->update(dlg, data);
-
-   if (nk_window_is_hidden(ctx, c_str(dlg->name))) {
-      nk_window_close(ctx, c_str(dlg->name));
-      vecPushBack(GUIWindowPtr)(remList, win);
-   }
-}
-
-
-void guiUpdate(GUI *self, AppData *data) {
-   _viewerUpdate(self->viewer, data);
-   _optionsUpdate(self->options, data);
-   _taskBarUpdate(self->taskBar, data);
-   _logSpudUpdate(self->logSpud, data);
-
-   vec(GUIWindowPtr) *remList = vecCreate(GUIWindowPtr)(NULL);
-   vecForEach(GUIWindowPtr, win, self->dialogs, {
-      _updateDialog(win, data, remList);
-   });
-
-   vecForEach(GUIWindowPtr, win, remList, {
-      vecRemove(GUIWindowPtr)(self->dialogs, win);
-   });
-
-   vecDestroy(GUIWindowPtr)(remList);
-
-   //update flash timers
-   if (encTestLineTimer++ % 30 == 0) {
-      ++encTestLineCounter;
-   }
-}
-
-
+#pragma endregion
