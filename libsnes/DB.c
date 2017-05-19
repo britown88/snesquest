@@ -88,6 +88,16 @@ void _dbClearError(DBBase *self) {
    stringClear(self->err);
 }
 
+int _dbBeginTransaction(DBBase *self) {
+   return dbExecute(self, "BEGIN TRANSACTION;");
+}
+int _dbRollbackTransaction(DBBase *self) {
+   return dbExecute(self, "ROLLBACK TRANSACTION;");
+}
+int _dbCommitTransaction(DBBase *self) {
+   return dbExecute(self, "COMMIT TRANSACTION;");
+}
+
 int dbExecute(DBBase *self, const char *cmd) {
    int result = 0;
    char *err = NULL;

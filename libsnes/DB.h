@@ -29,6 +29,13 @@ void _dbClearError(DBBase *self);
 #define dbGetError(db) _dbGetError((DBBase*)db)
 #define dbClearError(db) _dbClearError((DBBase*)db)
 
+int _dbBeginTransaction(DBBase *self);
+int _dbRollbackTransaction(DBBase *self);
+int _dbCommitTransaction(DBBase *self);
+#define dbBeginTransaction(db) _dbBeginTransaction((DBBase*)db)
+#define dbRollbackTransaction(db) _dbRollbackTransaction((DBBase*)db)
+#define dbCommitTransaction(db) _dbCommitTransaction((DBBase*)db)
+
 int dbExecute(DBBase *self, const char *cmd);
 
 //if *out is null, it will create and preapre a new statement there

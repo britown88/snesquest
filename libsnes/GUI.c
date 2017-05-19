@@ -1362,7 +1362,7 @@ static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
       LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
    }
    else {
-      LOG(TAG, LOG_INFO, "Inserted CharacterMap %i", newcmap.id);
+      LOG(TAG, LOG_SUCCESS, "Inserted CharacterMap [%I64i]:%s", newcmap.id, c_str(newcmap.name));
    }
    
    dbCharacterMapsDestroy(&newcmap);
