@@ -31,6 +31,12 @@
 #define MAX_VERTEX_MEMORY 1024 * 1024
 #define MAX_ELEMENT_MEMORY 512 * 1024
 
+static const struct nk_color GUIColorWhite = { 210, 210, 210, 255 };
+static const struct nk_color GUIColorBlue = { 95, 108, 255, 255 };
+static const struct nk_color GUIColorYellow = { 255, 242, 135, 255 };
+static const struct nk_color GUIColorGreen = { 70, 196, 70, 255 };
+static const struct nk_color GUIColorRed = { 219, 43, 60, 255 };
+
 #define _colorToNKColor(in) nk_rgb(in.r, in.g, in.b)
 
 static const char *LogSpudWin = "LogSpud";
@@ -833,11 +839,11 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
          vecForEach(LogSpudEntry, e, log, {
             struct nk_color c = { 0 };
             switch (e->level) {
-            case LOG_INFO: c = nk_rgb(255, 255, 255); if (!showInfo) { continue; } break;
-            case LOG_INFOBLUE: c = nk_rgb(75, 88, 255); if (!showInfo) { continue; } break;
-            case LOG_WARN: c = nk_rgb(255, 242, 135); if (!showWarn) { continue; } break;
-            case LOG_SUCCESS: c = nk_rgb(70, 196, 70); if (!showSuccess) { continue; } break;
-            case LOG_ERR: c = nk_rgb(219, 43, 60); if (!showError) { continue; } break;
+            case LOG_INFO: c = GUIColorWhite; if (!showInfo) { continue; } break;
+            case LOG_INFOBLUE: c = GUIColorBlue; if (!showInfo) { continue; } break;
+            case LOG_WARN: c = GUIColorYellow; if (!showWarn) { continue; } break;
+            case LOG_SUCCESS: c = GUIColorGreen; if (!showSuccess) { continue; } break;
+            case LOG_ERR: c = GUIColorRed; if (!showError) { continue; } break;
             }
 
             nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, c, "|%s| %s", e->tag, c_str(e->msg));
@@ -895,9 +901,11 @@ void guiUpdate(GUI *self, AppData *data) {
 
 #pragma region Character Importer
 
+#define ENCODE_PALETTE_COUNT 8
+
 typedef struct {
    SNESColor color;
-   int encodingIndex[4];  //index in the encode palette to use for the encode
+   int encodingIndex[ENCODE_PALETTE_COUNT];  //index in the encode palette to use for the encode
 }ColorMapEntry;
 
 #define VectorT ColorMapEntry
@@ -1017,7 +1025,7 @@ typedef struct {
    ColorRGBA *encodeTestPixels;
 
    // palette used to encode the final image
-   vec(SNESColor) *encodePalette[4];
+   vec(SNESColor) *encodePalette[ENCODE_PALETTE_COUNT];
 
    // how many colors in the encode palette
    e_ColorOptions colorOption;
@@ -1066,7 +1074,7 @@ GUIWindow *_charToolCreate(GUI *gui) {
    out->colorOption = ColorOption16;
 
    int i = 0;
-   for (i = 0; i < 4; ++i) {
+   for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
       out->encodePalette[i] = vecCreate(SNESColor)(NULL);
       vecResize(SNESColor)(out->encodePalette[i], _colorCountFromOption(out->colorOption), &(SNESColor){0});
    }
@@ -1094,7 +1102,7 @@ void _charToolDestroy(GUIWindow *_self) {
    vecDestroy(ColorMapEntry)(self->importedColors);
 
    int i = 0;
-   for (i = 0; i < 4; ++i) {
+   for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
       vecDestroy(SNESColor)(self->encodePalette[i]);
    }
 
@@ -1167,7 +1175,7 @@ static void _smartFillEncodedPalette(CharTool *self) {
    Int2 impSize = textureGetSize(self->imported);
 
    int pIdx = 0;//self->optCurrentPalette;
-   for (pIdx = 0; pIdx < 4; ++pIdx) {
+   for (pIdx = 0; pIdx < ENCODE_PALETTE_COUNT; ++pIdx) {
       size_t current = 1;
 
       //clear existing
@@ -1288,9 +1296,9 @@ static void _importTextureFromFile(CharTool *self, String *file) {
 
    vecForEach(ColorMapEntry, entry, self->importedColors, {
       int i = 0;
-   for (i = 0; i < 4; ++i) {
-      entry->encodingIndex[i] = -1;
-   }
+      for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
+         entry->encodingIndex[i] = -1;
+      }
 
    });
 
@@ -1573,7 +1581,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   self->selectedEncodeColor = 0;
 
                   int i = 0;
-                  for (i = 0; i < 4; ++i) {
+                  for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
                      vecResize(SNESColor)(self->encodePalette[i], _colorCountFromOption(self->colorOption), &(SNESColor){0});
                   }
                }
@@ -1634,6 +1642,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                self->optCurrentPalette = nk_option_label(ctx, "1", self->optCurrentPalette == 1) ? 1 : self->optCurrentPalette;
                self->optCurrentPalette = nk_option_label(ctx, "2", self->optCurrentPalette == 2) ? 2 : self->optCurrentPalette;
                self->optCurrentPalette = nk_option_label(ctx, "3", self->optCurrentPalette == 3) ? 3 : self->optCurrentPalette;
+
+               self->optCurrentPalette = nk_option_label(ctx, "4", self->optCurrentPalette == 4) ? 4 : self->optCurrentPalette;
+               self->optCurrentPalette = nk_option_label(ctx, "5", self->optCurrentPalette == 5) ? 5 : self->optCurrentPalette;
+               self->optCurrentPalette = nk_option_label(ctx, "6", self->optCurrentPalette == 6) ? 6 : self->optCurrentPalette;
+               self->optCurrentPalette = nk_option_label(ctx, "7", self->optCurrentPalette == 7) ? 7 : self->optCurrentPalette;
 
                if (sizeUpdate) {
                   _updateEncodeTestSize(self);
@@ -1698,6 +1711,58 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                nk_style_pop_flags(ctx);
                nk_group_end(ctx);
             }
+            nk_tree_pop(ctx);
+         }
+
+         if (nk_tree_push(ctx, NK_TREE_NODE, "Save", NK_MINIMIZED)) {
+
+            if (self->imported) {
+               static char palNameBuff[MAX_NAME_LEN + 1];
+               size_t palLen = NK_MIN(stringLen(self->savePaletteName), MAX_NAME_LEN);
+               static char charNameBuff[MAX_NAME_LEN + 1];
+               size_t charLen = NK_MIN(stringLen(self->saveCharMapName), MAX_NAME_LEN);
+
+               memcpy(palNameBuff, c_str(self->savePaletteName), palLen);
+               palNameBuff[palLen] = 0;
+               memcpy(charNameBuff, c_str(self->saveCharMapName), charLen);
+               charNameBuff[charLen] = 0;
+
+               if (nk_tree_push(ctx, NK_TREE_NODE, "Palette", NK_MAXIMIZED)) {
+                  nk_layout_row_dynamic(ctx, 20.0f, 1);
+
+                  //nk_label(ctx, "Palette", NK_TEXT_ALIGN_LEFT);
+                  nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  if (nk_edit_string(ctx, NK_EDIT_SIMPLE, palNameBuff, &palLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
+                     palNameBuff[palLen] = 0;
+                     stringSet(self->savePaletteName, palNameBuff);
+                  }
+
+                  //nk_layout_row_dynamic(ctx, 20.0f, 2);
+                  nk_button_label(ctx, "Update Existing");
+                  nk_button_label(ctx, "Create New");
+
+                  nk_tree_pop(ctx);
+               }
+
+               if (nk_tree_push(ctx, NK_TREE_NODE, "Character Map", NK_MAXIMIZED)) {
+
+                  nk_layout_row_dynamic(ctx, 20.0f, 1);
+
+                  //nk_label(ctx, "Character Map", NK_TEXT_ALIGN_LEFT);
+                  nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  if (nk_edit_string(ctx, NK_EDIT_SIMPLE, charNameBuff, &charLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
+                     charNameBuff[charLen] = 0;
+                     stringSet(self->saveCharMapName, charNameBuff);
+                  }
+
+                  //nk_layout_row_dynamic(ctx, 20.0f, 2);
+                  nk_button_label(ctx, "Update Existing");
+                  nk_button_label(ctx, "Create New");
+
+                  nk_tree_pop(ctx);
+               }
+            }
+            
             nk_tree_pop(ctx);
          }
 
@@ -1837,40 +1902,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
       nk_spacing(ctx, 1);
 
       nk_layout_row_push(ctx, optGroupWidth);
-      if (nk_group_begin(ctx, "saveLoad", 0)) {
-         static const size_t MaxNameLen = 64;
-
-         static char palNameBuff[MAX_NAME_LEN + 1];
-         size_t palLen = NK_MIN(stringLen(self->savePaletteName), MAX_NAME_LEN);
-
-         static char charNameBuff[MAX_NAME_LEN + 1];
-         size_t charLen = NK_MIN(stringLen(self->saveCharMapName), MAX_NAME_LEN);
-
-
-         memcpy(palNameBuff, c_str(self->savePaletteName), palLen);
-         palNameBuff[palLen] = 0;
-         memcpy(charNameBuff, c_str(self->saveCharMapName), charLen);
-         charNameBuff[charLen] = 0;
-
-         float layout[] = { 0.6f, 0.4f };
-         nk_layout_row(ctx, NK_DYNAMIC, 20, 2, layout);
-
-         if (nk_edit_string(ctx, NK_EDIT_SIMPLE, palNameBuff, &palLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
-            palNameBuff[palLen] = 0;
-            stringSet(self->savePaletteName, palNameBuff);
-         }
-         nk_button_label(ctx, "Palette");
-
-         if (nk_edit_string(ctx, NK_EDIT_SIMPLE, charNameBuff, &charLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
-            charNameBuff[charLen] = 0;
-            stringSet(self->saveCharMapName, charNameBuff);
-         }
-         if (nk_button_label(ctx, "Char Map")) {
-            if (self->imported) {
-               _commitCharacterMapToDB(self, data);
-            }
-         }
-
+      if (nk_group_begin(ctx, "", 0)) {
          nk_group_end(ctx);
       }
 

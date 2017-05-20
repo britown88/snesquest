@@ -511,13 +511,13 @@ void sourceWriteHeader(FILE *f, FileData *data) {
       "   This API is for use with %s.db\n"
       "   Which contains %i table(s).\n"
       "***********************************************************************/\n\n"
-      "#include \"%s\"\n"
+      "#include \"%s.h\"\n"
       "#include \"DB.h\"\n"
       "#include \"libutils/CheckedMemory.h\"\n"
 
       "#include \"sqlite/sqlite3.h\"\n\n"
 
-      , c_str(data->inputFileOnly), vecSize(DBStruct)(data->structs), c_str(data->outputh)
+      , c_str(data->inputFileOnly), vecSize(DBStruct)(data->structs), c_str(data->inputFileOnly)
 
       );
 }
