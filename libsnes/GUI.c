@@ -1844,30 +1844,6 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          self->filesLoaded = false;
       }
 
-      if (nk_menu_begin_label(ctx, "DB", NK_TEXT_LEFT, nk_vec2(300.0f, 5000.0f))) {
-         if (!self->dbLoaded) {
-            self->dbMaps = dbCharacterMapsSelectAll(data->db);
-            self->dbLoaded = true;
-         }
-         nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-
-         vecForEach(DBCharacterMaps, m, self->dbMaps, {
-            nk_layout_row_dynamic(ctx, 20, 1);
-            if (nk_button_label(ctx, c_str(m->name))) {
-               _importCharacterMap(self, data, m);
-               nk_menu_close(ctx);
-               break;
-            }
-         });
-
-         nk_style_pop_flags(ctx);
-         nk_menu_end(ctx);
-      }
-      else if (self->dbLoaded) {
-         vecDestroy(DBCharacterMaps)(self->dbMaps);
-         self->dbLoaded = false;
-      }
-
       nk_menubar_end(ctx);
 
       //split panel
@@ -2207,8 +2183,31 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   }
 
                   if (self->dbCharMapID) {
+                     static int deleteConfirm = false;
                      if (nk_button_label(ctx, "Delete")) {
-                        _cmapDelete(self, data);
+                        deleteConfirm = true;
+                     }
+
+                     if (deleteConfirm) {
+                        static struct nk_rect s = { 20, 100, 220, 90 };
+                        if (nk_popup_begin(ctx, NK_POPUP_STATIC, "Confirmation", 0, s)) {
+                           nk_layout_row_dynamic(ctx, 25, 1);
+                           nk_label(ctx, "Sure you wanna delete?", NK_TEXT_LEFT);
+                           nk_layout_row_dynamic(ctx, 25, 2);
+                           if (nk_button_label(ctx, "Yup")) {
+                              _cmapDelete(self, data);
+                              deleteConfirm = false;
+                              nk_popup_close(ctx);
+                           }
+                           if (nk_button_label(ctx, "No way!")) {
+                              deleteConfirm = false;
+                              nk_popup_close(ctx);
+                           }
+                           nk_popup_end(ctx);
+                        }
+                        else {
+                           deleteConfirm = false;
+                        }
                      }
                   }
 
@@ -2216,6 +2215,69 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                }
             }
             
+            nk_tree_pop(ctx);
+         }
+
+         if (nk_tree_push(ctx, NK_TREE_NODE, "Load", NK_MINIMIZED)) {
+            static int cMapChooser = false;
+            static int palChooser = false;
+
+            nk_layout_row_dynamic(ctx, 20, 1);
+            if (nk_button_label(ctx, "Character Map")) { cMapChooser = true; }
+            if (nk_button_label(ctx, "Palette")) { palChooser = true; }
+
+            if (cMapChooser) {
+               if (!self->dbLoaded) {
+                  self->dbMaps = dbCharacterMapsSelectAll(data->db);
+                  self->dbLoaded = true;
+               }
+
+               static struct nk_rect s = { 20, 100, 220, 400 };
+               if (nk_popup_begin(ctx, NK_POPUP_STATIC, "Choose CMap", 0, s)) {
+                  nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT | NK_TEXT_ALIGN_MIDDLE);
+                  nk_layout_row_dynamic(ctx, 20, 1);
+
+                  nk_label(ctx, "Choose DB Map", NK_TEXT_ALIGN_LEFT);
+
+                  nk_layout_row_dynamic(ctx, 300, 1);
+
+                  if (nk_group_begin(ctx, "Maps", NK_WINDOW_BORDER)) {
+                     nk_layout_row_dynamic(ctx, 20, 1);
+
+                     vecForEach(DBCharacterMaps, m, self->dbMaps, {
+                        if (nk_button_label(ctx, c_str(m->name))) {
+                           _importCharacterMap(self, data, m);
+                           cMapChooser = false;                           
+                           break;
+                        }
+                     });
+
+                     nk_group_end(ctx);
+                  }
+
+                  nk_style_pop_flags(ctx);
+
+                  nk_layout_row_dynamic(ctx, 20, 1);
+                  if (nk_button_label(ctx, "Cancel")) {
+                     cMapChooser = false;
+                  }                  
+
+                  if (!cMapChooser) {
+                     nk_popup_close(ctx);
+                  }
+                                  
+                  nk_popup_end(ctx);
+               }
+               else {
+                  cMapChooser = false;
+               }
+            }
+            else if (self->dbLoaded) {
+               vecDestroy(DBCharacterMaps)(self->dbMaps);
+               self->dbLoaded = false;
+            }
+            
+
             nk_tree_pop(ctx);
          }
 
@@ -2372,225 +2434,6 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
    }
 
    nk_end(ctx);
-
-
-   /*
-
-
-   static boolean refreshFiles = true;
-   static String *selectedFile = NULL;
-   static Texture *ogTex = NULL;
-   static SNESColor ogPalette[16] = { 0 };
-   static SNESColor resPalette[16] = { 0 };
-
-
-   if (nk_begin(ctx, c_str(selfwin->name), winRect,
-   NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MOVABLE | NK_WINDOW_CLOSABLE))
-   {
-   static vec(StringPtr) *files = NULL;
-
-   //if (!files || refreshFiles) {
-   //   if (files) {
-   //      vecDestroy(StringPtr)(files);
-   //      selectedFile = NULL;
-   //      files = NULL;
-   //   }
-   //   deviceContextListFiles("assets", DC_FILE_ALL, &files, "png");
-   //   refreshFiles = false;
-   //}
-
-   int i = 0;
-   struct nk_rect winBounds = nk_window_get_content_region(ctx);
-
-   nk_layout_space_begin(ctx, NK_STATIC, 410, 64);
-   //nk_layout_space_push(ctx, nk_rect(0, 0, 180, winBounds.h - 5));
-   //if (nk_group_begin(ctx, "Files", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-   //   vecForEach(StringPtr, str, files, {
-   //      nk_layout_row_dynamic(ctx, 20, 1);
-   //   if (nk_button_label(ctx, c_str(*str))) {
-
-   //      if (*str != selectedFile) {
-   //         selectedFile = *str;
-
-   //         TextureRequest request = {
-   //            .repeatType = RepeatType_Clamp,
-   //            .filterType = FilterType_Nearest,
-   //            .path = stringIntern(c_str(selectedFile))
-   //         };
-
-
-   //         ogTex = textureManagerGetTexture(data->textureManager, request);
-
-   //         _processImage(ogTex, ogPalette);
-   //         memcpy(resPalette, ogPalette, sizeof(SNESColor) * 16);
-   //      }
-
-   //   }
-   //   });
-   //   nk_group_end(ctx);
-   //}
-
-   nk_layout_space_push(ctx, nk_rect(190, 0, 300, 300));
-   if (nk_group_begin(ctx, "Original", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-   if (ogTex) {
-   nk_layout_row_begin(ctx, NK_DYNAMIC, 250, 1);
-   nk_layout_row_push(ctx, 1.0f);
-
-   enum nk_widget_layout_states state;
-   struct nk_rect bounds;
-   state = nk_widget(&bounds, ctx);
-   if (state) {
-   struct nk_image img = nk_image_id((int)textureGetGLHandle(ogTex));
-   nk_draw_image(nk_window_get_canvas(ctx), bounds, &img, nk_rgb(255, 255, 255));
-   }
-   nk_layout_row_end(ctx);
-   }
-
-   nk_group_end(ctx);
-   }
-
-   nk_layout_space_push(ctx, nk_rect(190, 310, 300, 70));
-   if (nk_group_begin(ctx, "Unique Colors", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-   struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
-
-   //palette table
-   const float palRowHeight = 20, palRectWidth = 17;
-   nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
-   nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
-
-   nk_layout_row_push(ctx, palRectWidth * 16);
-
-   enum nk_widget_layout_states state;
-   struct nk_rect bounds;
-
-   state = nk_widget(&bounds, ctx);
-   if (state) {
-   int x = 0;
-
-   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-   pBounds.h /= 2;
-   pBounds.w /= 2;
-
-   nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
-   pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
-   pBounds.x -= palRectWidth / 2; pBounds.y += palRowHeight / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(255, 255, 255));
-   pBounds.x += palRectWidth / 2; nk_fill_rect(canvas, pBounds, 0, nk_rgb(128, 128, 128));
-
-
-   for (x = 1; x < 16; ++x) {
-   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-   pBounds.x += x * palRectWidth;
-   ColorRGBA c = snesColorConverTo24Bit(ogPalette[x]);
-   nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
-
-   }
-   }
-
-   nk_layout_row_end(ctx);
-   nk_style_pop_vec2(ctx);
-
-
-
-   nk_group_end(ctx);
-   }
-
-   nk_layout_space_push(ctx, nk_rect(500, 0, 300, 300));
-   if (nk_group_begin(ctx, "Result", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-
-   nk_group_end(ctx);
-   }
-
-   nk_layout_space_push(ctx, nk_rect(500, 310, 300, 70));
-   if (nk_group_begin(ctx, "Encoded Palette", NK_WINDOW_BORDER | NK_WINDOW_TITLE)) {
-
-   struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
-
-   //palette table
-   const float palRowHeight = 20, palRectWidth = 17;
-   nk_style_push_vec2(ctx, &ctx->style.window.spacing, nk_vec2(0, 2));
-   nk_layout_row_begin(ctx, NK_STATIC, palRowHeight, 1);
-
-
-   nk_layout_row_push(ctx, palRectWidth * 16);
-
-   enum nk_widget_layout_states state;
-   struct nk_rect bounds;
-
-   state = nk_widget(&bounds, ctx);
-   if (state) {
-   int x = 0;
-   for (x = 0; x < 16; ++x) {
-
-   struct nk_rect pBounds = nk_rect(bounds.x, bounds.y, palRectWidth, bounds.h);
-   pBounds.x += x * palRectWidth;
-
-   ColorRGBA c = snesColorConverTo24Bit(resPalette[x]);
-   nk_fill_rect(canvas, pBounds, 0, _colorToNKColor(c));
-
-   }
-   }
-
-   nk_layout_row_end(ctx);
-   nk_style_pop_vec2(ctx);
-
-   nk_group_end(ctx);
-   }
-
-   nk_layout_space_push(ctx, nk_rect(600, 390, 200, 20));
-   if (nk_button_label(ctx, "Import")) {
-   if (ogTex) {
-   SNES *snes = data->snes;
-   memcpy(snes->cgram.objPalettes.palette16s[0].colors, resPalette, sizeof(SNESColor) * 16);
-
-   const ColorRGBA *pixels = textureGetPixels(ogTex);
-   Int2 sz = textureGetSize(ogTex);
-   int y = 0, x = 0, i = 0;
-
-   //Char16 *character = (Char16 *)&snes->vram;
-   //memset(character, 0, sizeof(*character));
-
-   int tileX = 0, tileY = 0;
-   Char16 *character = NULL;
-
-
-   for (tileY = 0; tileY < 8; ++tileY) {
-   for (tileX = 0; tileX < 8; ++tileX) {
-   character = (Char16 *)&snes->vram + tileY * 16 + tileX;
-   memset(character, 0, sizeof(Char16));
-
-   for (y = 0; y < 8; ++y) {
-   for (x = 0; x < 8; ++x) {
-   ColorRGBA c = pixels[(y + tileY * 8)*sz.x + (x + tileX * 8)];
-   if (c.a == 255) {
-   SNESColor bit15 = { c.r >> 3, c.g >> 3, c.b >> 3 };
-
-   byte2 raw = *(byte2*)&bit15;
-
-   for (i = 1; i < 16; ++i) {
-   byte2 raw2 = *(byte2*)&resPalette[i];
-
-   if (raw == raw2) {
-   //character += tileY * 16;
-   character->tiles[0].rows[y].planes[0] |= (i & 1) << x;
-   character->tiles[0].rows[y].planes[1] |= ((i & 2) >> 1) << x;
-   character->tiles[1].rows[y].planes[0] |= ((i & 4) >> 2) << x;
-   character->tiles[1].rows[y].planes[1] |= ((i & 8) >> 3) << x;
-   break;
-   }
-   }
-   }
-   }
-   }
-   }
-   }
-   }
-   }
-
-   nk_layout_space_end(ctx);
-   }
-
-   nk_end(ctx);
-   */
 }
 
 #pragma endregion
