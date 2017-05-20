@@ -158,7 +158,7 @@ int dbPaletteOwnersInsert(DB_DBAssets *db, DBPaletteOwners *obj){
 }
 int dbPaletteOwnersUpdate(DB_DBAssets *db, const DBPaletteOwners *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"PaletteOwners\" SET (\"characterMapId\" = :characterMapId) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"PaletteOwners\" SET \"characterMapId\" = :characterMapId WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->PaletteOwnersStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }
@@ -305,7 +305,7 @@ int dbPalettesInsert(DB_DBAssets *db, DBPalettes *obj){
 }
 int dbPalettesUpdate(DB_DBAssets *db, const DBPalettes *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"Palettes\" SET (\"paletteOwnerId\" = :paletteOwnerId, \"name\" = :name, \"colorCount\" = :colorCount, \"colors\" = :colors) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"Palettes\" SET \"paletteOwnerId\" = :paletteOwnerId, \"name\" = :name, \"colorCount\" = :colorCount, \"colors\" = :colors WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->PalettesStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }
@@ -542,7 +542,7 @@ int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj){
 }
 int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"CharacterImportData\" SET (\"characterMapId\" = :characterMapId, \"width\" = :width, \"height\" = :height, \"pixelData\" = :pixelData, \"offsetX\" = :offsetX, \"offsetY\" = :offsetY, \"colorMapping\" = :colorMapping) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"CharacterImportData\" SET \"characterMapId\" = :characterMapId, \"width\" = :width, \"height\" = :height, \"pixelData\" = :pixelData, \"offsetX\" = :offsetX, \"offsetY\" = :offsetY, \"colorMapping\" = :colorMapping WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterImportDataStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }
@@ -854,7 +854,7 @@ int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj){
 }
 int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"CharacterMaps\" SET (\"name\" = :name, \"width\" = :width, \"height\" = :height, \"colorCount\" = :colorCount, \"data\" = :data, \"tilePaletteMap\" = :tilePaletteMap, \"encodePaletteCount\" = :encodePaletteCount) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"CharacterMaps\" SET \"name\" = :name, \"width\" = :width, \"height\" = :height, \"colorCount\" = :colorCount, \"data\" = :data, \"tilePaletteMap\" = :tilePaletteMap, \"encodePaletteCount\" = :encodePaletteCount WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterMapsStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }
@@ -1095,7 +1095,7 @@ int dbCharacterEncodePaletteInsert(DB_DBAssets *db, DBCharacterEncodePalette *ob
 }
 int dbCharacterEncodePaletteUpdate(DB_DBAssets *db, const DBCharacterEncodePalette *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"CharacterEncodePalette\" SET (\"characterMapId\" = :characterMapId, \"paletteId\" = :paletteId, \"index\" = :index) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"CharacterEncodePalette\" SET \"characterMapId\" = :characterMapId, \"paletteId\" = :paletteId, \"index\" = :index WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterEncodePaletteStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }

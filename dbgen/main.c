@@ -814,7 +814,7 @@ void sourceWriteUpdate(FILE *f, FileData *fd, DBStruct *strct) {
 
    fprintf(f,
       "   int result = 0;\n"
-      "   static const char *stmt = \"UPDATE \\\"%s\\\" SET ("
+      "   static const char *stmt = \"UPDATE \\\"%s\\\" SET "
       , c_str(strct->name));
 
    vecForEach(DBMember, member, strct->members, {
@@ -835,7 +835,7 @@ void sourceWriteUpdate(FILE *f, FileData *fd, DBStruct *strct) {
    }
    });
 
-   fprintf(f, ") WHERE (\\\"%s\\\" = :%s)\";\n", c_str(pkey->name), c_str(pkey->name));
+   fprintf(f, " WHERE (\\\"%s\\\" = :%s)\";\n", c_str(pkey->name), c_str(pkey->name));
 
 
    fprintf(f,

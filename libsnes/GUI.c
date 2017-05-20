@@ -1378,7 +1378,213 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
    return out;
 }
 
-static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
+static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap, DBCharacterImportData *impData) {
+   LOG(TAG, LOG_INFO, "Updating character map...");
+   dbBeginTransaction(data->db);
+   boolean failed = false;
+
+   DBCharacterImportData findImpData = dbCharacterImportDataSelectFirstBycharacterMapId(data->db, self->dbCharMapID);
+   if (!findImpData.id) {
+      LOG(TAG, LOG_ERR, "Failed to find CharacterMapImportData under CharacterMap ID %i", self->dbCharMapID);
+      failed = true;
+   }
+   else {
+      newcmap->id = self->dbCharMapID;
+      impData->id = findImpData.id;
+      impData->characterMapId = newcmap->id;
+
+      if (dbCharacterMapsUpdate(data->db, newcmap) != DB_SUCCESS) {
+         LOG(TAG, LOG_ERR, "Failed to Update CharacterMap:");
+         LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+         failed = true;
+      }
+      else {
+         LOG(TAG, LOG_INFO, "Updated CharacterMap [%I64i]:%s", newcmap->id, c_str(newcmap->name));
+
+         if (dbCharacterImportDataUpdate(data->db, impData) != DB_SUCCESS) {
+            LOG(TAG, LOG_ERR, "Failed to Update CharacterMapImportData:");
+            LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+            failed = true;
+         }
+         else {
+            LOG(TAG, LOG_INFO, "Updated CharacterMapImportData [%I64i]", impData->id);
+
+            //now to insert palettes
+            LOG(TAG, LOG_INFO, "Updating palettes...");
+            vec(DBCharacterEncodePalette) *pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, self->dbCharMapID);
+            vecForEach(DBCharacterEncodePalette, p, pals, {
+               DBPalettes up = dbPalettesSelectFirstByid(data->db, p->paletteId);
+               static char buff[16] = { 0 };
+               up.name = stringCopy(newcmap->name);
+               sprintf(buff, "_%i", p->index);
+               stringConcat(up.name, buff);
+               checkedFree(up.colors);
+               up.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+               up.colors = checkedCalloc(1, up.colorsSize);
+               memcpy(up.colors, vecBegin(SNESColor)(self->encodePalette[p->index]), up.colorsSize);
+
+               if (dbPalettesUpdate(data->db, &up) != DB_SUCCESS) {
+                  LOG(TAG, LOG_ERR, "Failed to Update Palette:");
+                  LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+                  failed = true;
+                  dbPalettesDestroy(&up);
+                  break;
+               }
+
+               LOG(TAG, LOG_INFO, "Updated Palette [%I64i]:%s", up.id, c_str(up.name));
+            });
+
+
+            int pIdx = vecSize(DBCharacterEncodePalette)(pals);
+            vecDestroy(DBCharacterEncodePalette)(pals);
+
+            for (; pIdx < newcmap->encodePaletteCount; ++pIdx) {
+               DBPaletteOwners dbOwn = { 0 };
+               dbOwn.characterMapId = newcmap->id;
+               if (dbPaletteOwnersInsert(data->db, &dbOwn) != DB_SUCCESS) {
+                  LOG(TAG, LOG_ERR, "Failed to insert DBPaletteOwner:");
+                  LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+                  failed = true;
+                  break;
+               }
+
+               DBPalettes pal = { 0 };
+               static char buff[16] = { 0 };
+               pal.colorCount = newcmap->colorCount;
+               pal.paletteOwnerId = dbOwn.id;
+               pal.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+               pal.colors = checkedCalloc(1, pal.colorsSize);
+               memcpy(pal.colors, vecBegin(SNESColor)(self->encodePalette[pIdx]), pal.colorsSize);
+               pal.name = stringCopy(newcmap->name);
+               sprintf(buff, "_%i", pIdx);
+               stringConcat(pal.name, buff);
+
+
+               if (dbPalettesInsert(data->db, &pal) != DB_SUCCESS) {
+                  LOG(TAG, LOG_ERR, "Failed to insert Palette:");
+                  LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+                  failed = true;
+                  dbPalettesDestroy(&pal);
+                  break;
+               }
+
+               LOG(TAG, LOG_INFO, "Inserted Palette [%I64i]:%s", pal.id, c_str(pal.name));
+
+               DBCharacterEncodePalette encPal = { 0 };
+               encPal.characterMapId = newcmap->id;
+               encPal.paletteId = pal.id;
+               encPal.index = pIdx;
+
+               if (dbCharacterEncodePaletteInsert(data->db, &encPal) != DB_SUCCESS) {
+                  LOG(TAG, LOG_ERR, "Failed to insert CharacterEncodePalette:");
+                  LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+                  failed = true;
+                  dbPalettesDestroy(&pal);
+                  break;
+               }
+
+               dbPalettesDestroy(&pal);
+            }
+         }
+      }
+   }
+
+   if (failed) {
+      dbRollbackTransaction(data->db);
+   }
+   else {
+      dbCommitTransaction(data->db);
+      LOG(TAG, LOG_SUCCESS, "Done!");
+   }
+}
+
+static void _cmapInsert(CharTool *self, AppData *data, DBCharacterMaps *newcmap, DBCharacterImportData *impData) {
+   LOG(TAG, LOG_INFO, "Comitting character map...");
+   dbBeginTransaction(data->db);
+   boolean failed = false;
+
+   if (dbCharacterMapsInsert(data->db, newcmap) != DB_SUCCESS) {
+      LOG(TAG, LOG_ERR, "Failed to insert CharacterMap:");
+      LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+      failed = true;
+   }
+   else {
+      LOG(TAG, LOG_INFO, "Inserted CharacterMap [%I64i]:%s", newcmap->id, c_str(newcmap->name));
+
+      //set the FK
+      impData->characterMapId = newcmap->id;
+
+      if (dbCharacterImportDataInsert(data->db, impData) != DB_SUCCESS) {
+         LOG(TAG, LOG_ERR, "Failed to insert CharacterMapImportData:");
+         LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+         failed = true;
+      }
+      else {
+         int pIdx = 0;
+         LOG(TAG, LOG_INFO, "Inserted CharacterMapImportData [%I64i]", impData->id);
+
+         //now to insert palettes
+         LOG(TAG, LOG_INFO, "Creating transient palettes...");
+         for (pIdx = 0; pIdx < newcmap->encodePaletteCount; ++pIdx) {
+            DBPaletteOwners dbOwn = { 0 };
+            dbOwn.characterMapId = newcmap->id;
+            if (dbPaletteOwnersInsert(data->db, &dbOwn) != DB_SUCCESS) {
+               LOG(TAG, LOG_ERR, "Failed to insert DBPaletteOwner:");
+               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+               failed = true;
+               break;
+            }
+
+            DBPalettes pal = { 0 };
+            static char buff[16] = { 0 };
+            pal.colorCount = newcmap->colorCount;
+            pal.paletteOwnerId = dbOwn.id;
+            pal.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+            pal.colors = checkedCalloc(1, pal.colorsSize);
+            memcpy(pal.colors, vecBegin(SNESColor)(self->encodePalette[pIdx]), pal.colorsSize);
+            pal.name = stringCopy(newcmap->name);
+            sprintf(buff, "_%i", pIdx);
+            stringConcat(pal.name, buff);
+
+
+            if (dbPalettesInsert(data->db, &pal) != DB_SUCCESS) {
+               LOG(TAG, LOG_ERR, "Failed to insert Palette:");
+               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+               failed = true;
+               dbPalettesDestroy(&pal);
+               break;
+            }
+
+            LOG(TAG, LOG_INFO, "Inserted Palette [%I64i]:%s", pal.id, c_str(pal.name));
+
+            DBCharacterEncodePalette encPal = { 0 };
+            encPal.characterMapId = newcmap->id;
+            encPal.paletteId = pal.id;
+            encPal.index = pIdx;
+
+            if (dbCharacterEncodePaletteInsert(data->db, &encPal) != DB_SUCCESS) {
+               LOG(TAG, LOG_ERR, "Failed to insert CharacterEncodePalette:");
+               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+               failed = true;
+               dbPalettesDestroy(&pal);
+               break;
+            }
+
+            dbPalettesDestroy(&pal);
+         }
+      }
+   }
+
+   if (failed) {
+      dbRollbackTransaction(data->db);
+   }
+   else {
+      dbCommitTransaction(data->db);
+      LOG(TAG, LOG_SUCCESS, "Done!");
+   }
+}
+
+static void _commitCharacterMapToDB(CharTool *self,  AppData *data, boolean update) {
    DBCharacterMaps newcmap = { 0 };
    int palCount = 0;
    int i = 0, x = 0, y = 0;
@@ -1474,86 +1680,14 @@ static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
    memcpy(impData.colorMapping, vecBegin(ColorMapEntry)(self->importedColors), impData.colorMappingSize); 
 
 
-   LOG(TAG, LOG_INFO, "Comitting character map...");
-   dbBeginTransaction(data->db);
-   boolean failed = false;
-
-   if (dbCharacterMapsInsert(data->db, &newcmap) != DB_SUCCESS) {
-      LOG(TAG, LOG_ERR, "Failed to insert CharacterMap:");
-      LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
-      failed = true;
+   if (update) {
+      _cmapUpdate(self, data, &newcmap, &impData);
    }
    else {
-      LOG(TAG, LOG_INFO, "Inserted CharacterMap [%I64i]:%s", newcmap.id, c_str(newcmap.name));
-
-      //set the FK
-      impData.characterMapId = newcmap.id;
-
-      if (dbCharacterImportDataInsert(data->db, &impData) != DB_SUCCESS) {
-         LOG(TAG, LOG_ERR, "Failed to insert CharacterMapImportData:");
-         LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
-         failed = true;
-      }
-      else {
-         int pIdx = 0;
-         LOG(TAG, LOG_INFO, "Inserted CharacterMapImportData [%I64i]", impData.id);
-         
-         //now to insert palettes
-         LOG(TAG, LOG_INFO, "Creating transient palettes...");
-         for (pIdx = 0; pIdx < newcmap.encodePaletteCount; ++pIdx) {
-            DBPaletteOwners dbOwn = { 0 };
-            dbOwn.characterMapId = newcmap.id;
-            if (dbPaletteOwnersInsert(data->db, &dbOwn) != DB_SUCCESS) {
-               LOG(TAG, LOG_ERR, "Failed to insert DBPaletteOwner:");
-               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
-               failed = true;
-               break;
-            }
-
-            DBPalettes pal = { 0 };
-            static char buff[16] = { 0 };
-            pal.colorCount = newcmap.colorCount;
-            pal.paletteOwnerId = dbOwn.id;
-            pal.colorsSize = newcmap.colorCount * sizeof(SNESColor);
-            pal.colors = checkedCalloc(1, pal.colorsSize);
-            memcpy(pal.colors, vecBegin(SNESColor)(self->encodePalette[pIdx]), pal.colorsSize);
-            pal.name = stringCopy(newcmap.name);
-            sprintf(buff, "_%i", pIdx);
-            stringConcat(pal.name, buff);
-
-
-            if (dbPalettesInsert(data->db, &pal) != DB_SUCCESS) {
-               LOG(TAG, LOG_ERR, "Failed to insert Palette:");
-               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
-               failed = true;
-               dbPalettesDestroy(&pal);
-               break;
-            }
-
-            LOG(TAG, LOG_INFO, "Inserted Palette [%I64i]:%s", pal.id, c_str(pal.name));
-
-            DBCharacterEncodePalette encPal = { 0 };
-            encPal.characterMapId = newcmap.id;
-            encPal.paletteId = pal.id;
-            encPal.index = pIdx;            
-
-            if (dbCharacterEncodePaletteInsert(data->db, &encPal) != DB_SUCCESS) {
-               LOG(TAG, LOG_ERR, "Failed to insert CharacterEncodePalette:");
-               LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
-               failed = true;
-               dbPalettesDestroy(&pal);
-               break;
-            }
-
-            dbPalettesDestroy(&pal);
-         }
-      }
+      _cmapInsert(self, data, &newcmap, &impData);
    }
 
-   if (failed) { dbRollbackTransaction(data->db); }
-   else { dbCommitTransaction(data->db);
-   LOG(TAG, LOG_SUCCESS, "Done!");
-   }
+   self->dbCharMapID = newcmap.id;
    
    dbCharacterImportDataDestroy(&impData);
    dbCharacterMapsDestroy(&newcmap);
@@ -1921,7 +2055,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   nk_layout_row_dynamic(ctx, 20.0f, 1);
 
                   if (self->dbCharMapID) {
-                     nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                     nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, GUIColorGreen, "Loaded ID: %i", self->dbCharMapID);
                   }
                   
                   if (nk_edit_string(ctx, NK_EDIT_SIMPLE, charNameBuff, &charLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
@@ -1930,7 +2064,14 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   }
 
                   if (self->dbCharMapID) {
-                     nk_button_label(ctx, "Update Existing");
+                     if (nk_button_label(ctx, "Update Existing")) {
+                        if (stringLen(self->dbCharMapName) == 0) {
+                           LOG(TAG, LOG_ERR, "Character map must have a name.");
+                        }
+                        else {
+                           _commitCharacterMapToDB(self, data, true);
+                        }
+                     }
                   }
                   
                   if (nk_button_label(ctx, "Create New")) {
@@ -1938,7 +2079,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                         LOG(TAG, LOG_ERR, "Character map must have a name.");
                      }
                      else {
-                        _commitCharacterMapToDB(self, data);
+                        _commitCharacterMapToDB(self, data, false);
                      }
                   }
 
