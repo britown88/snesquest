@@ -1020,7 +1020,9 @@ typedef struct {
    GUIWindow base;
 
    FileDirectory files;
-   boolean filesLoaded;
+   boolean filesLoaded, dbLoaded;
+
+   vec(DBCharacterMaps) *dbMaps;
 
    Texture
       //the imported image file
@@ -1298,7 +1300,7 @@ static void _importTextureFromFile(CharTool *self, String *file) {
 
    Texture *imported = textureCreate(request);
    if (!imported) {
-      //TODO: Show failure message
+      LOG(TAG, LOG_ERR, "Failed to load image %s", c_str(file));
       return;
    }
 
@@ -1329,6 +1331,81 @@ static void _importTextureFromFile(CharTool *self, String *file) {
    });
 
    _smartFillEncodedPalette(self);
+
+   self->dbCharMapID = 0;
+   String *fname = stringGetFilename(file);
+   stringSet(self->dbCharMapName, c_str(fname));
+   stringDestroy(fname);
+}
+
+static void _importCharacterMap(CharTool *self, AppData *data, DBCharacterMaps *m) {
+
+   DBCharacterImportData impData = dbCharacterImportDataSelectFirstBycharacterMapId(data->db, m->id);
+   if (!impData.id) {
+      LOG(TAG, LOG_ERR, "Unable to find import data for CharacterMap ID %i", m->id);
+      return;
+   }
+
+   vec(DBCharacterEncodePalette) *pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, m->id);
+
+   if (self->imported) {
+      textureDestroy(self->imported);
+      checkedFree(self->importColorMap);
+   }
+
+   self->imported = textureCreateCustom(impData.width, impData.height, RepeatType_Clamp, FilterType_Nearest);
+   textureSetPixels(self->imported, impData.pixelData);
+   Int2 texSize = textureGetSize(self->imported);
+
+   self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
+   self->optXOffset = impData.offsetX;
+   self->optYOffset = impData.offsetY;
+   self->optXTileCount = m->width;
+   self->optYTileCount = m->height;
+   self->selectedColorLink = -1;
+
+   self->colorOption = m->colorCount == 4 ? ColorOption4 : (m->colorCount == 16 ? ColorOption16 : ColorOption256);
+
+   stringSet(self->dbCharMapName, c_str(m->name));
+
+   _getUniqueColors(self->imported, self->importedColors, self->importColorMap);
+   memcpy(vecBegin(ColorMapEntry)(self->importedColors), impData.colorMapping, impData.colorMappingSize);
+
+
+   if (self->encodeTest) {
+      textureDestroy(self->encodeTest);
+      checkedFree(self->encodeTestPixels);
+      checkedFree(self->tilePaletteMap);
+   }
+
+   Int2 encTestSize = { self->optXTileCount * 8, self->optYTileCount * 8 };
+   self->encodeTestPixels = checkedCalloc(1, encTestSize.x * encTestSize.y * sizeof(ColorRGBA));
+   self->encodeTest = textureCreateCustom(encTestSize.x, encTestSize.y, RepeatType_Clamp, FilterType_Nearest);
+   self->tilePaletteMap = checkedCalloc(1, self->optXTileCount * self->optYTileCount);
+   memcpy(self->tilePaletteMap, m->tilePaletteMap, m->tilePaletteMapSize);
+
+   vecForEach(DBCharacterEncodePalette, p, pals, {
+      DBPalettes dbp = dbPalettesSelectFirstByid(data->db, p->paletteId);
+      vecResize(DBCharacterEncodePalette)(self->encodePalette[p->index], m->colorCount, &(SNESColor){ 0 });
+      memcpy(vecBegin(DBCharacterEncodePalette)(self->encodePalette[p->index]), dbp.colors, dbp.colorsSize);
+      dbPalettesDestroy(&dbp);      
+   });
+
+   self->dbCharMapID = m->id;
+   dbCharacterImportDataDestroy(&impData);
+   vecDestroy(DBCharacterEncodePalette)(pals);
+
+   
+
+   //vecForEach(ColorMapEntry, entry, self->importedColors, {
+   //   int i = 0;
+   //for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
+   //   entry->encodingIndex[i] = -1;
+   //}
+   //});
+
+   //_smartFillEncodedPalette(self);
+
 }
 
 static void _loadFiles(FileDirectory *root) {
@@ -1393,6 +1470,8 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
       impData->id = findImpData.id;
       impData->characterMapId = newcmap->id;
 
+      dbCharacterImportDataDestroy(&findImpData);
+
       if (dbCharacterMapsUpdate(data->db, newcmap) != DB_SUCCESS) {
          LOG(TAG, LOG_ERR, "Failed to Update CharacterMap:");
          LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
@@ -1415,7 +1494,7 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
             vecForEach(DBCharacterEncodePalette, p, pals, {
                DBPalettes up = dbPalettesSelectFirstByid(data->db, p->paletteId);
                static char buff[16] = { 0 };
-               up.name = stringCopy(newcmap->name);
+               stringSet(up.name, c_str(newcmap->name));
                sprintf(buff, "_%i", p->index);
                stringConcat(up.name, buff);
                checkedFree(up.colors);
@@ -1432,6 +1511,7 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
                }
 
                LOG(TAG, LOG_INFO, "Updated Palette [%I64i]:%s", up.id, c_str(up.name));
+               dbPalettesDestroy(&up);
             });
 
 
@@ -1720,14 +1800,14 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
       //menu
       nk_menubar_begin(ctx);
-      nk_layout_row_begin(ctx, NK_STATIC, 25, 1);
+      nk_layout_row_begin(ctx, NK_STATIC, 25, 2);
       nk_layout_row_push(ctx, 45);
-      if (nk_menu_begin_label(ctx, "Import", NK_TEXT_LEFT, nk_vec2(300.0f, 5000.0f))) {
+      if (nk_menu_begin_label(ctx, "FILE", NK_TEXT_LEFT, nk_vec2(300.0f, 5000.0f))) {
          if (!self->filesLoaded) {
             _loadFiles(&self->files);
             self->filesLoaded = true;
          }
-         nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT);
+         nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT | NK_TEXT_ALIGN_MIDDLE);
 
          String *found = NULL;
          if (found = _buildFileTree(ctx, &self->files)) {
@@ -1743,6 +1823,30 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          _fileDirectoryDestroy(&self->files);
          _fileDirectoryInit(&self->files, ".");
          self->filesLoaded = false;
+      }
+
+      if (nk_menu_begin_label(ctx, "DB", NK_TEXT_LEFT, nk_vec2(300.0f, 5000.0f))) {
+         if (!self->dbLoaded) {
+            self->dbMaps = dbCharacterMapsSelectAll(data->db);
+            self->dbLoaded = true;
+         }
+         nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+
+         vecForEach(DBCharacterMaps, m, self->dbMaps, {
+            nk_layout_row_dynamic(ctx, 20, 1);
+            if (nk_button_label(ctx, c_str(m->name))) {
+               _importCharacterMap(self, data, m);
+               nk_menu_close(ctx);
+               break;
+            }
+         });
+
+         nk_style_pop_flags(ctx);
+         nk_menu_end(ctx);
+      }
+      else if (self->dbLoaded) {
+         vecDestroy(DBCharacterMaps)(self->dbMaps);
+         self->dbLoaded = false;
       }
 
       nk_menubar_end(ctx);
