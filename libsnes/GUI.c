@@ -1342,7 +1342,7 @@ static void _importCharacterMap(CharTool *self, AppData *data, DBCharacterMaps *
 
    DBCharacterImportData impData = dbCharacterImportDataSelectFirstBycharacterMapId(data->db, m->id);
    if (!impData.id) {
-      LOG(TAG, LOG_ERR, "Unable to find import data for CharacterMap ID %i", m->id);
+      LOG(TAG, LOG_ERR, "Unable to find import data for CharacterMap ID %lli", m->id);
       return;
    }
 
@@ -1353,15 +1353,15 @@ static void _importCharacterMap(CharTool *self, AppData *data, DBCharacterMaps *
       checkedFree(self->importColorMap);
    }
 
-   self->imported = textureCreateCustom(impData.width, impData.height, RepeatType_Clamp, FilterType_Nearest);
+   self->imported = textureCreateCustom((int)impData.width, (int)impData.height, RepeatType_Clamp, FilterType_Nearest);
    textureSetPixels(self->imported, impData.pixelData);
    Int2 texSize = textureGetSize(self->imported);
 
    self->importColorMap = checkedCalloc(1, texSize.x * texSize.y * sizeof(int));
-   self->optXOffset = impData.offsetX;
-   self->optYOffset = impData.offsetY;
-   self->optXTileCount = m->width;
-   self->optYTileCount = m->height;
+   self->optXOffset = (int)impData.offsetX;
+   self->optYOffset = (int)impData.offsetY;
+   self->optXTileCount = (int)m->width;
+   self->optYTileCount = (int)m->height;
    self->selectedColorLink = -1;
 
    self->colorOption = m->colorCount == 4 ? ColorOption4 : (m->colorCount == 16 ? ColorOption16 : ColorOption256);
@@ -1386,8 +1386,8 @@ static void _importCharacterMap(CharTool *self, AppData *data, DBCharacterMaps *
 
    vecForEach(DBCharacterEncodePalette, p, pals, {
       DBPalettes dbp = dbPalettesSelectFirstByid(data->db, p->paletteId);
-      vecResize(DBCharacterEncodePalette)(self->encodePalette[p->index], m->colorCount, &(SNESColor){ 0 });
-      memcpy(vecBegin(DBCharacterEncodePalette)(self->encodePalette[p->index]), dbp.colors, dbp.colorsSize);
+      vecResize(SNESColor)(self->encodePalette[p->index], (size_t)m->colorCount, &(SNESColor){ 0 });
+      memcpy(vecBegin(SNESColor)(self->encodePalette[p->index]), dbp.colors, dbp.colorsSize);
       dbPalettesDestroy(&dbp);      
    });
 
@@ -1462,7 +1462,7 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
 
    DBCharacterImportData findImpData = dbCharacterImportDataSelectFirstBycharacterMapId(data->db, self->dbCharMapID);
    if (!findImpData.id) {
-      LOG(TAG, LOG_ERR, "Failed to find CharacterMapImportData under CharacterMap ID %i", self->dbCharMapID);
+      LOG(TAG, LOG_ERR, "Failed to find CharacterMapImportData under CharacterMap ID %lli", self->dbCharMapID);
       failed = true;
    }
    else {
@@ -1495,10 +1495,10 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
                DBPalettes up = dbPalettesSelectFirstByid(data->db, p->paletteId);
                static char buff[16] = { 0 };
                stringSet(up.name, c_str(newcmap->name));
-               sprintf(buff, "_%i", p->index);
+               sprintf(buff, "_%lli", p->index);
                stringConcat(up.name, buff);
                checkedFree(up.colors);
-               up.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+               up.colorsSize = (int)newcmap->colorCount * sizeof(SNESColor);
                up.colors = checkedCalloc(1, up.colorsSize);
                memcpy(up.colors, vecBegin(SNESColor)(self->encodePalette[p->index]), up.colorsSize);
 
@@ -1532,7 +1532,7 @@ static void _cmapUpdate(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
                static char buff[16] = { 0 };
                pal.colorCount = newcmap->colorCount;
                pal.paletteOwnerId = dbOwn.id;
-               pal.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+               pal.colorsSize = (int)newcmap->colorCount * sizeof(SNESColor);
                pal.colors = checkedCalloc(1, pal.colorsSize);
                memcpy(pal.colors, vecBegin(SNESColor)(self->encodePalette[pIdx]), pal.colorsSize);
                pal.name = stringCopy(newcmap->name);
@@ -1619,7 +1619,7 @@ static void _cmapInsert(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
             static char buff[16] = { 0 };
             pal.colorCount = newcmap->colorCount;
             pal.paletteOwnerId = dbOwn.id;
-            pal.colorsSize = newcmap->colorCount * sizeof(SNESColor);
+            pal.colorsSize = (int)newcmap->colorCount * sizeof(SNESColor);
             pal.colors = checkedCalloc(1, pal.colorsSize);
             memcpy(pal.colors, vecBegin(SNESColor)(self->encodePalette[pIdx]), pal.colorsSize);
             pal.name = stringCopy(newcmap->name);
@@ -1664,6 +1664,25 @@ static void _cmapInsert(CharTool *self, AppData *data, DBCharacterMaps *newcmap,
    }
 }
 
+static void _cmapDelete(CharTool *self, AppData *data) {
+   if (dbCharacterMapsDeleteByid(data->db, self->dbCharMapID) != DB_SUCCESS) {
+      LOG(TAG, LOG_ERR, "Failed to delete CharacterMap:");
+      LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+   }
+   else {
+      LOG(TAG, LOG_INFO, "Deleted CharacterMap %lli", self->dbCharMapID);
+   }
+
+   self->dbCharMapID = 0;
+   textureDestroy(self->imported);
+   checkedFree(self->importColorMap);
+   textureDestroy(self->encodeTest);
+   checkedFree(self->encodeTestPixels);
+   checkedFree(self->tilePaletteMap);
+
+   self->imported = self->encodeTest = NULL;
+}
+
 static void _commitCharacterMapToDB(CharTool *self,  AppData *data, boolean update) {
    DBCharacterMaps newcmap = { 0 };
    int palCount = 0;
@@ -1700,7 +1719,7 @@ static void _commitCharacterMapToDB(CharTool *self,  AppData *data, boolean upda
    //tile size expressed in how many char4's (1, 2, 4)
    size_t tileChar4Size = tileByteSize / sizeof(Char4);
 
-   newcmap.dataSize = newcmap.width * newcmap.height * tileByteSize;
+   newcmap.dataSize = (int)newcmap.width * (int)newcmap.height * tileByteSize;
    newcmap.data = checkedCalloc(1, newcmap.dataSize);
 
    Int2 impSize = textureGetSize(self->imported);
@@ -2184,6 +2203,12 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                      }
                      else {
                         _commitCharacterMapToDB(self, data, false);
+                     }
+                  }
+
+                  if (self->dbCharMapID) {
+                     if (nk_button_label(ctx, "Delete")) {
+                        _cmapDelete(self, data);
                      }
                   }
 

@@ -98,7 +98,7 @@ int _dbCommitTransaction(DBBase *self) {
    return dbExecute(self, "COMMIT TRANSACTION;");
 }
 
-int dbExecute(DBBase *self, const char *cmd) {
+int _dbExecute(DBBase *self, const char *cmd) {
    int result = 0;
    char *err = NULL;
 

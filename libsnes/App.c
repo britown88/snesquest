@@ -232,6 +232,10 @@ static void _initDB(App *self) {
 
    if (dbIsConnected(self->db)) {
       LOG(TAG, LOG_SUCCESS, "Connected to database");
+      if (dbExecute(self->db, "PRAGMA foreign_keys = ON;") != DB_SUCCESS) {
+         LOG(TAG, LOG_ERR, "Failed to Enable Foreign Keys");
+         LOG(TAG, LOG_ERR, "   \"%s\"", dbGetError(self->db));
+      }
    }
    else {
       LOG(TAG, LOG_ERR, "Failed to connect to database");

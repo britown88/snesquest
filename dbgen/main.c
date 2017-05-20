@@ -1151,11 +1151,23 @@ void sourceCreateDB(FILE *f, FileData *fd) {
       "int db_%sCreateTables(DB_%s *self){\n"
       "   int result = 0;\n\n", c_str(fd->inputFileOnly), c_str(fd->inputFileOnly));
 
+   fprintf(f,
+      "   dbBeginTransaction(self);\n\n"
+      "   dbExecute(self, \"PRAGMA foreign_keys = ON;\");\n\n");
+
    vecForEach(DBStruct, strct, fd->structs, {
-      fprintf(f, "   if((result = db%sCreateTable(self)) != DB_SUCCESS){ return result; }\n", c_str(strct->name));
+      fprintf(f,
+      "   if((result = db%sCreateTable(self)) != DB_SUCCESS){\n"
+      "      dbRollbackTransaction(self);\n"
+      "      return result;\n"
+      "   }\n\n", c_str(strct->name));
    });
 
-   fprintf(f, "\n   return DB_SUCCESS;\n}\n\n");
+   fprintf(f,
+      "\n"
+      "   dbCommitTransaction(self);\n"
+      "   return DB_SUCCESS;\n"
+      "}\n\n");
 }
 
 void createSource(FileData *data) {

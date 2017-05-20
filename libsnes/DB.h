@@ -36,7 +36,8 @@ int _dbCommitTransaction(DBBase *self);
 #define dbRollbackTransaction(db) _dbRollbackTransaction((DBBase*)db)
 #define dbCommitTransaction(db) _dbCommitTransaction((DBBase*)db)
 
-int dbExecute(DBBase *self, const char *cmd);
+int _dbExecute(DBBase *self, const char *cmd);
+#define dbExecute(db, cmd) _dbExecute((DBBase*)db, cmd)
 
 //if *out is null, it will create and preapre a new statement there
 //otherwise it will call reset on it

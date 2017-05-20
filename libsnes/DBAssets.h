@@ -19,6 +19,30 @@ int db_DBAssetsCreateTables(DB_DBAssets *self);
 
 typedef struct {
    int64_t id;
+   String *name;
+   int64_t width;
+   int64_t height;
+   int64_t colorCount;
+   void *data;
+   int dataSize;
+   void *tilePaletteMap;
+   int tilePaletteMapSize;
+   int64_t encodePaletteCount;
+} DBCharacterMaps;
+
+#define VectorTPart DBCharacterMaps
+#include "libutils/Vector_Decl.h"
+
+void dbCharacterMapsDestroy(DBCharacterMaps *self); //this does not call free on self!!
+int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj);
+int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj); //will base on primary key
+vec(DBCharacterMaps) *dbCharacterMapsSelectAll(DB_DBAssets *db);
+DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int64_t id);
+int dbCharacterMapsDeleteAll(DB_DBAssets *db);
+int dbCharacterMapsDeleteByid(DB_DBAssets *db, int64_t id);
+
+typedef struct {
+   int64_t id;
    int64_t characterMapId;
 } DBPaletteOwners;
 
@@ -75,30 +99,6 @@ DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAsse
 vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
 int dbCharacterImportDataDeleteAll(DB_DBAssets *db);
 int dbCharacterImportDataDeleteBycharacterMapId(DB_DBAssets *db, int64_t characterMapId);
-
-typedef struct {
-   int64_t id;
-   String *name;
-   int64_t width;
-   int64_t height;
-   int64_t colorCount;
-   void *data;
-   int dataSize;
-   void *tilePaletteMap;
-   int tilePaletteMapSize;
-   int64_t encodePaletteCount;
-} DBCharacterMaps;
-
-#define VectorTPart DBCharacterMaps
-#include "libutils/Vector_Decl.h"
-
-void dbCharacterMapsDestroy(DBCharacterMaps *self); //this does not call free on self!!
-int dbCharacterMapsInsert(DB_DBAssets *db, DBCharacterMaps *obj);
-int dbCharacterMapsUpdate(DB_DBAssets *db, const DBCharacterMaps *obj); //will base on primary key
-vec(DBCharacterMaps) *dbCharacterMapsSelectAll(DB_DBAssets *db);
-DBCharacterMaps dbCharacterMapsSelectFirstByid(DB_DBAssets *db, int64_t id);
-int dbCharacterMapsDeleteAll(DB_DBAssets *db);
-int dbCharacterMapsDeleteByid(DB_DBAssets *db, int64_t id);
 
 typedef struct {
    int64_t id;
