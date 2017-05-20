@@ -474,12 +474,12 @@ void dbCharacterImportDataDestroyStatements(DB_DBAssets *db){
    }
 }
 int dbCharacterImportDataCreateTable(DB_DBAssets *db){
-   static const char *cmd = "CREATE TABLE \"CharacterImportData\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER NOT NULL, \"width\" INTEGER, \"height\" INTEGER, \"pixelData\" BLOB, \"offsetX\" INTEGER, \"offsetY\" INTEGER, \"tileCountX\" INTEGER, \"tileCountY\" INTEGER, \"colorMapping\" BLOB, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
+   static const char *cmd = "CREATE TABLE \"CharacterImportData\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, \"characterMapId\" INTEGER NOT NULL, \"width\" INTEGER, \"height\" INTEGER, \"pixelData\" BLOB, \"offsetX\" INTEGER, \"offsetY\" INTEGER, \"colorMapping\" BLOB, FOREIGN KEY (\"characterMapId\") REFERENCES \"CharacterMaps\" (\"id\") ON DELETE CASCADE);";
    return dbExecute((DBBase*)db, cmd);
 }
 int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj){
    int result = 0;
-   static const char *stmt = "INSERT INTO \"CharacterImportData\" (\"characterMapId\", \"width\", \"height\", \"pixelData\", \"offsetX\", \"offsetY\", \"tileCountX\", \"tileCountY\", \"colorMapping\") VALUES (:characterMapId, :width, :height, :pixelData, :offsetX, :offsetY, :tileCountX, :tileCountY, :colorMapping);";
+   static const char *stmt = "INSERT INTO \"CharacterImportData\" (\"characterMapId\", \"width\", \"height\", \"pixelData\", \"offsetX\", \"offsetY\", \"colorMapping\") VALUES (:characterMapId, :width, :height, :pixelData, :offsetX, :offsetY, :colorMapping);";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterImportDataStmts.insert, stmt) != DB_SUCCESS){
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -522,19 +522,7 @@ int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj){
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 7, obj->tileCountX);
-   if (result != SQLITE_OK) {
-      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
-      return DB_FAILURE;
-   }
-
-   result = sqlite3_bind_int64(db->CharacterImportDataStmts.insert, 8, obj->tileCountY);
-   if (result != SQLITE_OK) {
-      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
-      return DB_FAILURE;
-   }
-
-   result = sqlite3_bind_blob(db->CharacterImportDataStmts.insert, 9, obj->colorMapping, obj->colorMappingSize, SQLITE_TRANSIENT);
+   result = sqlite3_bind_blob(db->CharacterImportDataStmts.insert, 7, obj->colorMapping, obj->colorMappingSize, SQLITE_TRANSIENT);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -554,7 +542,7 @@ int dbCharacterImportDataInsert(DB_DBAssets *db, DBCharacterImportData *obj){
 }
 int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *obj){
    int result = 0;
-   static const char *stmt = "UPDATE \"CharacterImportData\" SET (\"characterMapId\" = :characterMapId, \"width\" = :width, \"height\" = :height, \"pixelData\" = :pixelData, \"offsetX\" = :offsetX, \"offsetY\" = :offsetY, \"tileCountX\" = :tileCountX, \"tileCountY\" = :tileCountY, \"colorMapping\" = :colorMapping) WHERE (\"id\" = :id)";
+   static const char *stmt = "UPDATE \"CharacterImportData\" SET (\"characterMapId\" = :characterMapId, \"width\" = :width, \"height\" = :height, \"pixelData\" = :pixelData, \"offsetX\" = :offsetX, \"offsetY\" = :offsetY, \"colorMapping\" = :colorMapping) WHERE (\"id\" = :id)";
    if(dbPrepareStatement((DBBase*)db, &db->CharacterImportDataStmts.update, stmt) != DB_SUCCESS){
       return DB_FAILURE;
    }
@@ -596,26 +584,14 @@ int dbCharacterImportDataUpdate(DB_DBAssets *db, const DBCharacterImportData *ob
       return DB_FAILURE;
    }
 
-   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 7, obj->tileCountX);
-   if (result != SQLITE_OK) {
-      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
-      return DB_FAILURE;
-   }
-
-   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 8, obj->tileCountY);
-   if (result != SQLITE_OK) {
-      stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
-      return DB_FAILURE;
-   }
-
-   result = sqlite3_bind_blob(db->CharacterImportDataStmts.update, 9, obj->colorMapping, obj->colorMappingSize, SQLITE_TRANSIENT);
+   result = sqlite3_bind_blob(db->CharacterImportDataStmts.update, 7, obj->colorMapping, obj->colorMappingSize, SQLITE_TRANSIENT);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
    }
 
    //primary key:
-   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 10, obj->id);
+   result = sqlite3_bind_int64(db->CharacterImportDataStmts.update, 8, obj->id);
    if (result != SQLITE_OK) {
       stringSet(db->base.err, sqlite3_errmsg(db->base.conn));
       return DB_FAILURE;
@@ -651,11 +627,9 @@ vec(DBCharacterImportData) *dbCharacterImportDataSelectAll(DB_DBAssets *db){
       memcpy(newObj.pixelData, sqlite3_column_blob(db->CharacterImportDataStmts.selectAll, 4), newObj.pixelDataSize);
       newObj.offsetX = sqlite3_column_int(db->CharacterImportDataStmts.selectAll, 5);
       newObj.offsetY = sqlite3_column_int(db->CharacterImportDataStmts.selectAll, 6);
-      newObj.tileCountX = sqlite3_column_int(db->CharacterImportDataStmts.selectAll, 7);
-      newObj.tileCountY = sqlite3_column_int(db->CharacterImportDataStmts.selectAll, 8);
-      newObj.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectAll, 9);
+      newObj.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectAll, 7);
       newObj.colorMapping = checkedCalloc(1, newObj.colorMappingSize);
-      memcpy(newObj.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectAll, 9), newObj.colorMappingSize);
+      memcpy(newObj.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectAll, 7), newObj.colorMappingSize);
       
       vecPushBack(DBCharacterImportData)(out, &newObj);
 
@@ -692,11 +666,9 @@ DBCharacterImportData dbCharacterImportDataSelectFirstBycharacterMapId(DB_DBAsse
       memcpy(out.pixelData, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 4), out.pixelDataSize);
       out.offsetX = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 5);
       out.offsetY = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 6);
-      out.tileCountX = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 7);
-      out.tileCountY = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 8);
-      out.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectBycharacterMapId, 9);
+      out.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectBycharacterMapId, 7);
       out.colorMapping = checkedCalloc(1, out.colorMappingSize);
-      memcpy(out.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 9), out.colorMappingSize);
+      memcpy(out.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 7), out.colorMappingSize);
    };
 
    return out;
@@ -729,11 +701,9 @@ vec(DBCharacterImportData) *dbCharacterImportDataSelectBycharacterMapId(DB_DBAss
       memcpy(newObj.pixelData, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 4), newObj.pixelDataSize);
       newObj.offsetX = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 5);
       newObj.offsetY = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 6);
-      newObj.tileCountX = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 7);
-      newObj.tileCountY = sqlite3_column_int(db->CharacterImportDataStmts.selectBycharacterMapId, 8);
-      newObj.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectBycharacterMapId, 9);
+      newObj.colorMappingSize = sqlite3_column_bytes(db->CharacterImportDataStmts.selectBycharacterMapId, 7);
       newObj.colorMapping = checkedCalloc(1, newObj.colorMappingSize);
-      memcpy(newObj.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 9), newObj.colorMappingSize);
+      memcpy(newObj.colorMapping, sqlite3_column_blob(db->CharacterImportDataStmts.selectBycharacterMapId, 7), newObj.colorMappingSize);
       
       vecPushBack(DBCharacterImportData)(out, &newObj);
 

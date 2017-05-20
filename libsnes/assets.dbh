@@ -32,8 +32,6 @@ table CharacterImportData{
 
    int offsetX;
    int offsetY;
-   int tileCountX;
-   int tileCountY;
 
    // ColorMapEntry*
    Blob colorMapping; 

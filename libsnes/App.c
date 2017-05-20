@@ -283,8 +283,8 @@ static void _gameStep(App *self) {
    Int2 n = self->winData.nativeResolution;
    const Recti nativeViewport = { 0, 0, n.x, n.y };
 
-   int xCount = 1;
-   int yCount = 1;
+   int xCount = 4;
+   int yCount = 2;
    int spacing = 64;
 
    for (y = 0; y < yCount; ++y) {

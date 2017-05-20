@@ -60,8 +60,6 @@ typedef struct {
    int pixelDataSize;
    int64_t offsetX;
    int64_t offsetY;
-   int64_t tileCountX;
-   int64_t tileCountY;
    void *colorMapping;
    int colorMappingSize;
 } DBCharacterImportData;
