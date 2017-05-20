@@ -100,6 +100,8 @@ struct GUI_t {
    vec(GUIWindowPtr) *dialogs;
 
    size_t charToolCount;
+   size_t errorCount, processedLogLineCount;
+   boolean scrollLogToBot;
 };
 
 static void _createWindows(GUI *self);
@@ -710,7 +712,8 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
             .filterType = FilterType_Nearest,
             .rawBuffer = enc_SpudTexture,
             .rawSize = sizeof(enc_SpudTexture)
-         };         spud = textureManagerGetTexture(data->textureManager, request);
+         };         
+         spud = textureManagerGetTexture(data->textureManager, request);
 
       }
       if (nk_button_image(ctx, nk_image_id((int)textureGetGLHandle(spud)))) {
@@ -719,12 +722,11 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
          if (nk_window_is_hidden(ctx, LogSpudWin)) {
             nk_window_show(ctx, LogSpudWin, NK_SHOWN);
             nk_window_set_focus(ctx, LogSpudWin);
+            self->parent->errorCount = 0;
          } 
          else{
             
-
             nk_window_show(ctx, LogSpudWin, NK_HIDDEN);
-            
          }
       }
 
@@ -752,6 +754,11 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
       }
 
       nk_layout_row_end(ctx);
+
+      if (self->parent->errorCount > 0) {
+         nk_layout_row_dynamic(ctx, 20.0f, 1);
+         nk_labelf_colored(ctx, NK_TEXT_ALIGN_LEFT, GUIColorRed, "%i Errors!", self->parent->errorCount);
+      }
 
    }
    nk_end(ctx);
@@ -800,9 +807,7 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
       firstLoad = false;
    }
 
-
-   if (nk_begin(ctx, c_str(self->name), winRect, winFlags))
-   {
+   if (nk_begin(ctx, c_str(self->name), winRect, winFlags)) {
       struct nk_panel *pnl = nk_window_get_panel(ctx);
 
       if (nk_input_is_mouse_click_in_rect(&ctx->input, NK_BUTTON_RIGHT, pnl->bounds)) {
@@ -828,14 +833,11 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
       nk_selectable_label(ctx, "Error", NK_TEXT_ALIGN_MIDDLE | NK_TEXT_ALIGN_CENTERED, &showError);
 
       nk_layout_row_dynamic(ctx, pnl->bounds.h - 40, 1);
-      if (nk_group_begin(ctx, "loggrp", NK_WINDOW_BORDER)) {
-         static size_t logCount = 0;
-         
+      if (nk_group_begin(ctx, "loggrp", NK_WINDOW_BORDER)) {        
 
          nk_layout_row_dynamic(ctx, 15, 1);
          vec(LogSpudEntry) *log = logSpudGet(data->log);
          
-
          vecForEach(LogSpudEntry, e, log, {
             struct nk_color c = { 0 };
             switch (e->level) {
@@ -850,12 +852,28 @@ void _logSpudUpdate(GUIWindow *self, AppData *data) {
          });
 
          size_t eCount = vecSize(LogSpudEntry)(log);
-         if (eCount != logCount) {
+         if (eCount != self->parent->processedLogLineCount || self->parent->scrollLogToBot) {
             *ctx->current->layout->offset_y = (int)INT_MAX;
-            logCount = eCount;
+            self->parent->processedLogLineCount = eCount;
+            self->parent->scrollLogToBot = false;
          }
 
          nk_group_end(ctx);
+      }
+   }
+   else {
+      vec(LogSpudEntry) *log = logSpudGet(data->log);
+      size_t i = 0;
+      vecForEach(LogSpudEntry, e, log, {
+         if (i++ >= self->parent->processedLogLineCount && e->level == LOG_ERR) {
+            ++self->parent->errorCount;
+         }
+      });
+
+      size_t eCount = vecSize(LogSpudEntry)(log);
+      if (eCount != self->parent->processedLogLineCount) {
+         self->parent->processedLogLineCount = eCount;
+         self->parent->scrollLogToBot = true;
       }
    }
    nk_end(ctx);
@@ -1046,7 +1064,11 @@ typedef struct {
 
    float grp1Resize, grp2Resize;
 
-   String *savePaletteName, *saveCharMapName;
+   int64_t dbCharMapID;
+   int64_t dbPalID[ENCODE_PALETTE_COUNT];
+
+   String *dbCharMapName;
+   String *dbPalNames[ENCODE_PALETTE_COUNT];
 
 }CharTool;
 
@@ -1083,8 +1105,10 @@ GUIWindow *_charToolCreate(GUI *gui) {
    out->selectedColorLink = -1;
    out->optShowColorGuide = true;
 
-   out->savePaletteName = stringCreate("");
-   out->saveCharMapName = stringCreate("");
+   out->dbCharMapName = stringCreate("");
+   for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
+      out->dbPalNames[i] = stringCreate("");
+   }
 
    return outwin;
 }
@@ -1106,8 +1130,11 @@ void _charToolDestroy(GUIWindow *_self) {
       vecDestroy(SNESColor)(self->encodePalette[i]);
    }
 
-   stringDestroy(self->savePaletteName);
-   stringDestroy(self->saveCharMapName);
+   stringDestroy(self->dbCharMapName);
+   for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
+      stringDestroy(self->dbPalNames[i]);
+   }
+   
 }
 
 static void _updateEncodeTest(CharTool *self) {
@@ -1299,7 +1326,6 @@ static void _importTextureFromFile(CharTool *self, String *file) {
       for (i = 0; i < ENCODE_PALETTE_COUNT; ++i) {
          entry->encodingIndex[i] = -1;
       }
-
    });
 
    _smartFillEncodedPalette(self);
@@ -1355,7 +1381,7 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
 static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
    DBCharacterMaps newcmap = { 0 };
 
-   newcmap.name = stringCopy(self->saveCharMapName);
+   newcmap.name = stringCopy(self->dbCharMapName);
    newcmap.width = self->optXTileCount;
    newcmap.height = self->optYTileCount;
 
@@ -1697,48 +1723,37 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
             nk_tree_pop(ctx);
          }
-
-         if (nk_tree_push(ctx, NK_TREE_NODE, "Palette", NK_MINIMIZED)) {
-            struct nk_panel *pnl = nk_window_get_panel(ctx);
-
-            nk_layout_row_dynamic(ctx, 500.0f, 1);
-            if (nk_group_begin(ctx, "palGroup", NK_WINDOW_BORDER)) {
-               nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT | NK_TEXT_ALIGN_MIDDLE);
-               nk_layout_row_dynamic(ctx, 20, 1);
-
-               nk_button_label(ctx, "Paletes!");
-
-               nk_style_pop_flags(ctx);
-               nk_group_end(ctx);
-            }
-            nk_tree_pop(ctx);
-         }
-
+         
          if (nk_tree_push(ctx, NK_TREE_NODE, "Save", NK_MINIMIZED)) {
 
             if (self->imported) {
+               size_t pIdx = self->optCurrentPalette;
                static char palNameBuff[MAX_NAME_LEN + 1];
-               size_t palLen = NK_MIN(stringLen(self->savePaletteName), MAX_NAME_LEN);
+               size_t palLen = NK_MIN(stringLen(self->dbPalNames[pIdx]), MAX_NAME_LEN);
                static char charNameBuff[MAX_NAME_LEN + 1];
-               size_t charLen = NK_MIN(stringLen(self->saveCharMapName), MAX_NAME_LEN);
+               size_t charLen = NK_MIN(stringLen(self->dbCharMapName), MAX_NAME_LEN);
 
-               memcpy(palNameBuff, c_str(self->savePaletteName), palLen);
+               memcpy(palNameBuff, c_str(self->dbPalNames[pIdx]), palLen);
                palNameBuff[palLen] = 0;
-               memcpy(charNameBuff, c_str(self->saveCharMapName), charLen);
+               memcpy(charNameBuff, c_str(self->dbCharMapName), charLen);
                charNameBuff[charLen] = 0;
 
                if (nk_tree_push(ctx, NK_TREE_NODE, "Palette", NK_MAXIMIZED)) {
                   nk_layout_row_dynamic(ctx, 20.0f, 1);
 
-                  //nk_label(ctx, "Palette", NK_TEXT_ALIGN_LEFT);
-                  nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  if (self->dbPalID[pIdx]) {
+                     nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  }
+                  
                   if (nk_edit_string(ctx, NK_EDIT_SIMPLE, palNameBuff, &palLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
                      palNameBuff[palLen] = 0;
-                     stringSet(self->savePaletteName, palNameBuff);
+                     stringSet(self->dbPalNames[pIdx], palNameBuff);
                   }
 
-                  //nk_layout_row_dynamic(ctx, 20.0f, 2);
-                  nk_button_label(ctx, "Update Existing");
+                  if (self->dbPalID[pIdx]) {
+                     nk_button_label(ctx, "Update Existing");
+                  }
+
                   nk_button_label(ctx, "Create New");
 
                   nk_tree_pop(ctx);
@@ -1748,16 +1763,27 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
 
                   nk_layout_row_dynamic(ctx, 20.0f, 1);
 
-                  //nk_label(ctx, "Character Map", NK_TEXT_ALIGN_LEFT);
-                  nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  if (self->dbCharMapID) {
+                     nk_label_colored(ctx, "Loaded ID: 1", NK_TEXT_ALIGN_LEFT, GUIColorGreen);
+                  }
+                  
                   if (nk_edit_string(ctx, NK_EDIT_SIMPLE, charNameBuff, &charLen, MAX_NAME_LEN, nk_filter_ascii) == NK_EDIT_ACTIVE) {
                      charNameBuff[charLen] = 0;
-                     stringSet(self->saveCharMapName, charNameBuff);
+                     stringSet(self->dbCharMapName, charNameBuff);
                   }
 
-                  //nk_layout_row_dynamic(ctx, 20.0f, 2);
-                  nk_button_label(ctx, "Update Existing");
-                  nk_button_label(ctx, "Create New");
+                  if (self->dbCharMapID) {
+                     nk_button_label(ctx, "Update Existing");
+                  }
+                  
+                  if (nk_button_label(ctx, "Create New")) {
+                     if (stringLen(self->dbCharMapName) == 0) {
+                        LOG(TAG, LOG_ERR, "Character map must have a name.");
+                     }
+                     else {
+
+                     }
+                  }
 
                   nk_tree_pop(ctx);
                }
