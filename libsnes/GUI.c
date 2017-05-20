@@ -1380,25 +1380,100 @@ static String *_buildFileTree(struct nk_context *ctx, FileDirectory *root) {
 
 static void _commitCharacterMapToDB(CharTool *self,  AppData *data) {
    DBCharacterMaps newcmap = { 0 };
+   int palCount = 0;
+   int i = 0, x = 0, y = 0;
 
    newcmap.name = stringCopy(self->dbCharMapName);
    newcmap.width = self->optXTileCount;
    newcmap.height = self->optYTileCount;
 
-   newcmap.colorCount = _colorCountFromOption(self->colorOption);
-
    newcmap.tilePaletteMapSize = self->optXTileCount * self->optYTileCount;
    newcmap.tilePaletteMap = checkedCalloc(1, newcmap.tilePaletteMapSize);
    memcpy(newcmap.tilePaletteMap, self->tilePaletteMap, newcmap.tilePaletteMapSize);
+      
+   for (i = 0; i < newcmap.tilePaletteMapSize; ++i) {
+      palCount = NK_MAX(palCount, self->tilePaletteMap[i]);
+   }
+   newcmap.encodePaletteCount = palCount + 1;
 
-   if (dbCharacterMapsInsert(data->db, &newcmap) != DB_SUCCESS) {
-      LOG(TAG, LOG_ERR, "Failed to insert CharacterMap:");
-      LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+   size_t tileByteSize = 0;
+   switch (self->colorOption) {
+   case ColorOption4:
+      tileByteSize = sizeof(Char4);
+      newcmap.colorCount = 4;
+      break;
+   case ColorOption16:
+      tileByteSize = sizeof(Char16);
+      newcmap.colorCount = 16;
+      break;
+   case ColorOption256:
+      tileByteSize = sizeof(Char256);
+      newcmap.colorCount = 256;
+      break;
    }
-   else {
-      LOG(TAG, LOG_SUCCESS, "Inserted CharacterMap [%I64i]:%s", newcmap.id, c_str(newcmap.name));
+   //tile size expressed in how many char4's (1, 2, 4)
+   size_t tileChar4Size = tileByteSize / sizeof(Char4);
+
+   newcmap.dataSize = newcmap.width * newcmap.height * tileByteSize;
+   newcmap.data = checkedCalloc(1, newcmap.dataSize);
+
+   Int2 impSize = textureGetSize(self->imported);
+
+   // now to encode to bitplanes ^_^
+   for (y = 0; y < newcmap.height; ++y) {
+      for (x = 0; x < newcmap.width; ++x) {
+         byte tX = 0, tY = 0;
+         byte pIdx = self->tilePaletteMap[y*newcmap.width+x];   
+
+         //need to figure out what char4 of the target to start at
+         Char4 *target = ((Char4*)newcmap.data) + ((y*newcmap.width + x) * tileChar4Size);
+
+         for (tY = 0; tY < 8; ++tY) {
+            for (tX = 0; tX < 8; ++tX) {
+               int srcY = y * 8 + self->optYOffset + tY;
+               int srcX = x * 8 + self->optXOffset + tX;
+
+               if (srcX >= 0 && srcX < impSize.x && srcY >= 0 && srcY < impSize.y) {
+                  int entryIdx = self->importColorMap[srcY * impSize.x + srcX];
+
+                  if (entryIdx >= 0) {
+                     ColorMapEntry *entry = vecAt(ColorMapEntry)(self->importedColors, entryIdx);
+                     byte cIdx = entry->encodingIndex[pIdx];
+                     if (cIdx >= 0) {
+                        byte c4Idx = 0;
+
+                        for (c4Idx = 0; c4Idx < tileChar4Size; ++c4Idx) {
+                           Char4 *dest = target + c4Idx;
+                           dest->rows[tY].planes[0] |= !!(cIdx & (1 << (c4Idx * 2))) << tX;
+                           dest->rows[tY].planes[1] |= !!(cIdx & (1 << (c4Idx * 2 + 1))) << tX;
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
    }
-   
+
+   memcpy(data->snes->vram.raw, newcmap.data, newcmap.dataSize);
+   memcpy(data->snes->cgram.objPalettes.palette16s, vecBegin(SNESColor)(self->encodePalette[0]), sizeof(SNESColor) * 16);
+
+   dbBeginTransaction(data->db);
+
+   //if (dbCharacterMapsInsert(data->db, &newcmap) != DB_SUCCESS) {
+   //   LOG(TAG, LOG_ERR, "Failed to insert CharacterMap:");
+   //   LOG(TAG, LOG_ERR, "   %s", dbGetError(data->db));
+
+   //   dbRollbackTransaction(data->db);
+   //   dbCharacterMapsDestroy(&newcmap);
+   //   return;
+   //}
+   //else {
+   //   LOG(TAG, LOG_SUCCESS, "Inserted CharacterMap [%I64i]:%s", newcmap.id, c_str(newcmap.name));
+   //}
+
+
+   dbCommitTransaction(data->db);
    dbCharacterMapsDestroy(&newcmap);
 }
 
@@ -1781,7 +1856,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                         LOG(TAG, LOG_ERR, "Character map must have a name.");
                      }
                      else {
-
+                        _commitCharacterMapToDB(self, data);
                      }
                   }
 
