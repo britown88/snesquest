@@ -404,15 +404,77 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
             // expecting an OBJ here, if the OBJ we found fits the priority description 
             // we can check it for clipping and use it
-            if (l->obj && objPresent && objPri == l->priority) {
-               result.mainPIdx = 128 + (objPalette * 16) + objPalIndex; //magic
-               break;
+            if (l->obj) {
+               if (objPresent && objPri == l->priority) {
+                  result.mainPIdx = 128 + (objPalette * 16) + objPalIndex; //magic
+                  break;
+               }
+               else {
+                  //obj layer skip the rest
+                  continue;
+               }
+               
             }
 
             //ok now to process a tilemap
+            //first we need to figure out what tile to use, which depends on the width of the tile in pixels
+            byte tileX = (byte)((x + l->horzOffset) >> (l->tSize ? 4 : 3)); //divided by 8 or 16
+            byte tileY = (byte)((y + l->vertOffset) >> (l->tSize ? 4 : 3));
+            byte inTileX = (byte)((x + l->horzOffset)&(l->tSize ? 15 : 7)); //mod16 or mod8
+            byte inTileY = (byte)((y + l->vertOffset)&(l->tSize ? 15 : 7));
+
+            //depending on how many tile maps are given to the BG, either point at a different map or wrap around
+            TileMap *tMap = tMaps[layer];
+
+            //top right
+            if (tileX >= 32 && tileY < 32) {
+               tileX -= 32;
+               if (l->sizeX) {
+                  tMap += 1;
+               }
+            }
+
+            //lower left
+            if (tileX < 32 && tileY >= 32) {
+               tileY -= 32;
+               if (l->sizeY) {
+                  tMap += l->sizeX ? 2 : 1;
+               }
+            }
+            
+            //lower right
+            if (tileX >= 32 && tileY >= 32) {
+               tileX -= 32; tileY -= 32;
+               if (l->sizeX && l->sizeY) {
+                  tMap += 3;
+               }
+               else if (l->sizeX || l->sizeY) {
+                  tMap += 1;
+               }
+            }
+
+            //now detemmine which tile we're using
+            Tile *t = tMap->tiles + (tileY * 32 + tileX);
+            if (t->tile.priority != l->priority) {
+               //only draw from this tile if its set to the currenlty-drawn priority
+               continue;
+            }
 
 
+            //we know the tile and the position within it, now we need to know the character
+            Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
 
+            byte palIndex = palIndex =
+               ((c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) >> inTileX) |
+               (((c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) >> inTileX) << 1) |
+               (((c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) >> inTileX) << 2) |
+               (((c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) >> inTileX) << 3);
+
+            if (palIndex) {
+               result.mainPIdx = (t->tile.palette * 16) + palIndex;
+               break;
+            }
+            
          }
 
 

@@ -16,12 +16,12 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    snes->reg.bgMode.m1bg3pri = 1;
 
    snes->reg.bgSizeAndTileBase[0].baseAddr = 0;
-   snes->reg.bgSizeAndTileBase[0].sizeX = 1;
-   snes->reg.bgSizeAndTileBase[0].sizeY = 1;
+   snes->reg.bgSizeAndTileBase[0].sizeX = 0;
+   snes->reg.bgSizeAndTileBase[0].sizeY = 0;
 
    snes->reg.bgSizeAndTileBase[1].baseAddr = 4;
-   snes->reg.bgSizeAndTileBase[1].sizeX = 1;
-   snes->reg.bgSizeAndTileBase[1].sizeY = 1;
+   snes->reg.bgSizeAndTileBase[1].sizeX = 0;
+   snes->reg.bgSizeAndTileBase[1].sizeY = 0;
 
    snes->reg.bgSizeAndTileBase[2].baseAddr = 31;
    snes->reg.bgSizeAndTileBase[2].sizeX = 0;
@@ -37,7 +37,7 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
 
    DBCharacterMaps hades = dbCharacterMapsSelectFirstByid(data->db, 25);
-   memcpy(data->snes->vram.mode1.objCMaps, hades.data, hades.dataSize);
+   memcpy(data->snes->vram.mode1.objCMaps, hades.data, hades.dataSize);   
 
    vec(DBCharacterEncodePalette) *pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, hades.id);
    vecForEach(DBCharacterEncodePalette, p, pals, {
@@ -51,6 +51,18 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
    DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 26);
    memcpy(&data->snes->vram.mode1.bgCMap, bg.data, bg.dataSize);
+
+   byte2 x = 0, y = 0;
+   for (y = 0; y < 19; ++y) {
+      for (x = 0; x < 16; ++x) {
+         int i = y * 32 + x;
+
+         Tile *t = &snes->vram.mode1.bg1TMaps[0].tiles[i];
+         t->tile.palette = *((byte*)bg.tilePaletteMap + (y*16+x));
+         t->tile.character = (y * 16 + x);
+      }
+   }
+   
 
    pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, bg.id);
    vecForEach(DBCharacterEncodePalette, p, pals, {
@@ -115,9 +127,12 @@ void gameUpdate(Game *self, AppData *data) {
    Int2 n = data->window->nativeResolution;
    const Recti nativeViewport = { 0, 0, n.x, n.y };
 
-   int xCount = 4;
-   int yCount = 2;
+   int xCount = 1;
+   int yCount = 1;
    int spacing = 64;
+
+   data->snes->reg.bgScroll[0].BG.horzOffset = (byte2)data->testBGX;
+   data->snes->reg.bgScroll[0].BG.vertOffset = (byte2)data->testBGY;
 
    for (y = 0; y < yCount; ++y) {
       for (x = 0; x < xCount; ++x) {
@@ -149,6 +164,7 @@ void gameUpdate(Game *self, AppData *data) {
          //self->snes.oam.secondary[idx].x9_0 = testX.twos.sign;
          data->snes->oam.primary[idx].x = testX.twos.value;
          data->snes->oam.primary[idx].y = data->testY + y*spacing;
+         data->snes->oam.primary[idx].priority = 3;
 
          if (x % 2) {
             data->snes->oam.primary[idx].flipX = 1;
