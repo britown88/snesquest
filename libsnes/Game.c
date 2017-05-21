@@ -134,6 +134,8 @@ void gameUpdate(Game *self, AppData *data) {
    data->snes->reg.bgScroll[0].BG.horzOffset = (byte2)data->testBGX;
    data->snes->reg.bgScroll[0].BG.vertOffset = (byte2)data->testBGY;
 
+   data->snes->reg.mosaic.size = (byte)(MAX(data->testMosaic - 1, 0));
+
    for (y = 0; y < yCount; ++y) {
       for (x = 0; x < xCount; ++x) {
          int idx = y * xCount + x;

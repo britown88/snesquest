@@ -401,6 +401,11 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
          for (layer = 0; layer < layerCount; ++layer) {
             ProcessBG *l = layers + layer;
+            int bgX = x, bgY = y;//makes sense here to work off copies inc ase we need to change them (mosaics)
+
+            byte mosaic = self->reg.mosaic.size + 1;
+            bgX = (bgX/mosaic) * mosaic;
+            bgY = (bgY / mosaic) * mosaic;
 
             // expecting an OBJ here, if the OBJ we found fits the priority description 
             // we can check it for clipping and use it
@@ -418,39 +423,20 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
             //ok now to process a tilemap
             //first we need to figure out what tile to use, which depends on the width of the tile in pixels
-            byte tileX = (byte)((x + l->horzOffset) >> (l->tSize ? 4 : 3)); //divided by 8 or 16
-            byte tileY = (byte)((y + l->vertOffset) >> (l->tSize ? 4 : 3));
-            byte inTileX = (byte)((x + l->horzOffset)&(l->tSize ? 15 : 7)); //mod16 or mod8
-            byte inTileY = (byte)((y + l->vertOffset)&(l->tSize ? 15 : 7));
+            byte tileX = (byte)((bgX + l->horzOffset) >> (l->tSize ? 4 : 3)); //divided by 8 or 16
+            byte tileY = (byte)((bgY + l->vertOffset) >> (l->tSize ? 4 : 3));
+            byte inTileX = (byte)((bgX + l->horzOffset)&(l->tSize ? 15 : 7)); //mod16 or mod8
+            byte inTileY = (byte)((bgY + l->vertOffset)&(l->tSize ? 15 : 7));
 
             //depending on how many tile maps are given to the BG, either point at a different map or wrap around
             TileMap *tMap = tMaps[layer];
-
-            //top right
-            if (tileX >= 32 && tileY < 32) {
-               tileX -= 32;
-               if (l->sizeX) {
-                  tMap += 1;
-               }
+            tileX &= l->sizeX ? 63 : 31;
+            if (tileX >= 32) {
+               tileX &= 31; tMap += 1;
             }
-
-            //lower left
-            if (tileX < 32 && tileY >= 32) {
-               tileY -= 32;
-               if (l->sizeY) {
-                  tMap += l->sizeX ? 2 : 1;
-               }
-            }
-            
-            //lower right
-            if (tileX >= 32 && tileY >= 32) {
-               tileX -= 32; tileY -= 32;
-               if (l->sizeX && l->sizeY) {
-                  tMap += 3;
-               }
-               else if (l->sizeX || l->sizeY) {
-                  tMap += 1;
-               }
+            tileY &= l->sizeY ? 63 : 31;
+            if (tileY >= 32) {
+               tileY &= 31;  tMap += l->sizeX ? 2 : 1;
             }
 
             //now detemmine which tile we're using
@@ -459,7 +445,6 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
                //only draw from this tile if its set to the currenlty-drawn priority
                continue;
             }
-
 
             //we know the tile and the position within it, now we need to know the character
             Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
