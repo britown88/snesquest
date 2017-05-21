@@ -25,6 +25,7 @@
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_IMPLEMENTATION
+//#define NK_BUTTON_TRIGGER_ON_RELEASE
 #include "nuklear.h"
 
 
@@ -480,13 +481,13 @@ static void _buildOptionsPalette(GUIWindow *self, AppData *data) {
    static int selectedPalette = 0;
    static SNESColor palette[256] = { 0 };
 
-   if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MINIMIZED)) {
+   if (nk_tree_push(ctx, NK_TREE_TAB, "Palette", NK_MAXIMIZED)) {
 
       static boolean firstLoad = true;
       struct nk_command_buffer *canvas = nk_window_get_canvas(ctx);
 
       //if (firstLoad) {
-      memcpy(palette, data->snes->cgram.bgPalette256.colors, sizeof(SNESColor) * 256);
+      memcpy(palette, data->snes->cgram.colors, sizeof(SNESColor) * 256);
       firstLoad = false;
       //}
 
@@ -577,7 +578,7 @@ static void _buildOptionsPalette(GUIWindow *self, AppData *data) {
       }
 
       nk_tree_pop(ctx);
-      memcpy(data->snes->cgram.bgPalette256.colors, palette, sizeof(SNESColor) * 256);
+      memcpy(data->snes->cgram.colors, palette, sizeof(SNESColor) * 256);
    }
 }
 
@@ -1172,8 +1173,8 @@ static void _updateEncodeTest(CharTool *self) {
 
                if (!selected) {
                   if (entry->encodingIndex[tilePalette] > 0) {
-                     SNESColor *ec = vecAt(SNESColor)(self->encodePalette[tilePalette], entry->encodingIndex[tilePalette]);
-                     c = snesColorConverTo24Bit(*ec);
+                     SNESColor ec = *vecAt(SNESColor)(self->encodePalette[tilePalette], entry->encodingIndex[tilePalette]);
+                     c = snesColorConverTo24Bit(ec);
                   }
                   else if (entry->encodingIndex[tilePalette] == -1 && self->optShowColorGuide) {
                      /*if (((i/encSize.x) % 3) == (encTestLineCounter % 3)) {*/
@@ -1761,8 +1762,8 @@ static void _commitCharacterMapToDB(CharTool *self,  AppData *data, boolean upda
    }
 
    //test add to snes ppu
-   memcpy(data->snes->vram.raw, newcmap.data, newcmap.dataSize);
-   memcpy(data->snes->cgram.objPalettes.palette16s, vecBegin(SNESColor)(self->encodePalette[0]), sizeof(SNESColor) * 16);
+   //memcpy(data->snes->vram.raw, newcmap.data, newcmap.dataSize);
+   //memcpy(data->snes->cgram.objPalettes.palette16s, vecBegin(SNESColor)(self->encodePalette[0]), sizeof(SNESColor) * 16);
 
    DBCharacterImportData impData = { 0 };
    impData.width = impSize.x;
@@ -2221,10 +2222,11 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
          if (nk_tree_push(ctx, NK_TREE_NODE, "Load", NK_MINIMIZED)) {
             static int cMapChooser = false;
             static int palChooser = false;
+            static int allowInput = false;
 
             nk_layout_row_dynamic(ctx, 20, 1);
-            if (nk_button_label(ctx, "Character Map")) { cMapChooser = true; }
-            if (nk_button_label(ctx, "Palette")) { palChooser = true; }
+            if (nk_button_label(ctx, "Character Map")) { cMapChooser = true; allowInput = false; }
+            if (nk_button_label(ctx, "Palette")) { palChooser = true; allowInput = false; }
 
             if (cMapChooser) {
                if (!self->dbLoaded) {
@@ -2232,8 +2234,9 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   self->dbLoaded = true;
                }
 
+               
                static struct nk_rect s = { 20, 100, 220, 400 };
-               if (nk_popup_begin(ctx, NK_POPUP_STATIC, "Choose CMap", 0, s)) {
+               if (nk_popup_begin(ctx, NK_POPUP_DYNAMIC, "Choose CMap", 0, s)) {
                   nk_style_push_flags(ctx, &ctx->style.button.text_alignment, NK_TEXT_ALIGN_LEFT | NK_TEXT_ALIGN_MIDDLE);
                   nk_layout_row_dynamic(ctx, 20, 1);
 
@@ -2245,7 +2248,7 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                      nk_layout_row_dynamic(ctx, 20, 1);
 
                      vecForEach(DBCharacterMaps, m, self->dbMaps, {
-                        if (nk_button_label(ctx, c_str(m->name))) {
+                        if(allowInput && nk_button_label(ctx, c_str(m->name))) {
                            _importCharacterMap(self, data, m);
                            cMapChooser = false;                           
                            break;
@@ -2258,12 +2261,16 @@ void _charToolUpdate(GUIWindow *selfwin, AppData *data) {
                   nk_style_pop_flags(ctx);
 
                   nk_layout_row_dynamic(ctx, 20, 1);
-                  if (nk_button_label(ctx, "Cancel")) {
+                  if (allowInput && nk_button_label(ctx, "Cancel")) {
                      cMapChooser = false;
                   }                  
 
                   if (!cMapChooser) {
                      nk_popup_close(ctx);
+                  }
+
+                  if (nk_input_is_mouse_released(&ctx->input, NK_BUTTON_LEFT)) {
+                     allowInput = true;
                   }
                                   
                   nk_popup_end(ctx);

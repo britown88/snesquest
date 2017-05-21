@@ -17,6 +17,7 @@
 #include "DBAssets.h"
 #include "DB.h"
 #include "LogSpud.h"
+#include "Game.h"
 
 static const char *TAG = "App";
 static const char *dbName = "snesquest.db";
@@ -57,6 +58,7 @@ struct App_t {
    FrameProfiler frameProfiler;
    DB_DBAssets *db;
    LogSpud *log;
+   Game *game;
 };
 
 static Window _buildWindowData() {
@@ -119,47 +121,11 @@ static void _renderDataDestroy(RenderData *self) {
 }
 
 
-
-static void _setupTestSNES(SNES *snes) {
-   int i = 0;
-
-   SNESColor *pColor = &snes->cgram.objPalettes.palette16s[0].colors[1];
-   pColor->r = 31;
-
-   pColor = &snes->cgram.objPalettes.palette16s[0].colors[2];
-   pColor->b = 31;
-
-   pColor = &snes->cgram.objPalettes.palette16s[0].colors[3];
-   pColor->g = 31;
-
-   Char16 *testChar = (Char16*)&snes->vram;
-
-   for (i = 0; i < 8; ++i) {
-      testChar->tiles[0].rows[i].planes[i % 2] = 255;
-
-      (testChar + 1)->tiles[0].rows[i].planes[i % 2] = 255;
-      (testChar + 1)->tiles[0].rows[i].planes[1] = 255;
-
-      (testChar + 16)->tiles[0].rows[i].planes[i % 2] = 255;
-      (testChar + 16)->tiles[0].rows[i].planes[1] = 255;
-
-      (testChar + 17)->tiles[0].rows[i].planes[!(i % 2)] = 255;
-   }
-
-   
-   for (i = 0; i < SNES_SCANLINE_COUNT; ++i) {
-      snes->hdma[i].objSizeAndBase.objSize = 5;
-   }
-
-   snes->oam.objCount = 128;
-
-}
-
 App *appCreate(Renderer *renderer, DeviceContext *context) {
    App *out = checkedCalloc(1, sizeof(App));
    g_App = out;
 
-   out->log = logSpudCreate(&out->data);
+   out->log = logSpudCreate(&out->data);   
 
    out->renderer = renderer;
    out->context = context;
@@ -167,8 +133,6 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    out->winData = _buildWindowData();
    _setupRenderData(out); 
 
-
-   _setupTestSNES(&out->snes);
    out->data.log = out->log;
    out->data.snes = &out->snes;
    out->data.snesTex = out->rData.snesTexture;
@@ -185,9 +149,13 @@ App *appCreate(Renderer *renderer, DeviceContext *context) {
    out->db = db_DBAssetsCreate();
    out->data.db = out->db;
 
+   out->game = gameCreate(&out->data);
+
    return out;
 }
-void appDestroy(App *self) {   
+void appDestroy(App *self) {
+   gameDestroy(self->game);
+
    _renderDataDestroy(&self->rData);
    db_DBAssetsDestroy(self->db);
    logSpudDestroy(self->log);
@@ -254,6 +222,8 @@ static void _start(App *self) {
 
    srand((unsigned int)time(NULL));
 
+   gameStart(self->game, &self->data);
+
    self->running = true;
 }
 
@@ -279,61 +249,8 @@ static void _renderBasicRectModel(App *self, Texture *tex, Float2 pos, Float2 si
 }
 
 static void _gameStep(App *self) {
-
    frameProfilerStartEntry(&self->frameProfiler, PROFILE_GAME_UPDATE);
-
-   int x = 0, y = 0;
-
-   Int2 n = self->winData.nativeResolution;
-   const Recti nativeViewport = { 0, 0, n.x, n.y };
-
-   int xCount = 4;
-   int yCount = 2;
-   int spacing = 64;
-
-   for (y = 0; y < yCount; ++y) {
-      for (x = 0; x < xCount; ++x) {
-         int idx = y * xCount + x;
-
-         TwosComplement9 testX = { self->data.testX + x*spacing };
-         if (testX.raw >= 256) {
-            testX.raw -= 512;
-         }
-
-         switch (idx % 4) {
-         case 0:
-            self->snes.oam.secondary[idx / 4].x9_0 = testX.twos.sign;
-            self->snes.oam.secondary[idx / 4].sz_0 = 1;
-            break;
-         case 1:
-            self->snes.oam.secondary[idx / 4].x9_1 = testX.twos.sign;
-            self->snes.oam.secondary[idx / 4].sz_1 = 1;
-            break;
-         case 2:
-            self->snes.oam.secondary[idx / 4].x9_2 = testX.twos.sign;
-            self->snes.oam.secondary[idx / 4].sz_2 = 1;
-            break;
-         case 3:
-            self->snes.oam.secondary[idx / 4].x9_3 = testX.twos.sign;
-            self->snes.oam.secondary[idx / 4].sz_3 = 1;
-            break;
-         }
-         //self->snes.oam.secondary[idx].x9_0 = testX.twos.sign;
-         self->snes.oam.primary[idx].x = testX.twos.value;
-         self->snes.oam.primary[idx].y = self->data.testY + y*spacing;
-
-         if (x % 2) {
-            self->snes.oam.primary[idx].flipX = 1;
-         }
-
-         if (y % 2) {
-            self->snes.oam.primary[idx].flipY = 1;
-         }
-      }
-   }
-
-   self->snes.oam.objCount = xCount*yCount;
-
+   gameUpdate(self->game, &self->data);
    frameProfilerEndEntry(&self->frameProfiler, PROFILE_GAME_UPDATE);
 }
 

@@ -18,16 +18,16 @@ typedef struct {
    byte2 r : 5, g : 5, b : 5;
 } SNESColor;
 
-ColorRGBA snesColorConverTo24Bit(SNESColor in);
-SNESColor snesColorConvertFrom24Bit(ColorRGBA in);
-
+/* stretch top 3 bits into lower 3 bits of target
+   5bit :     43210
+   target: 43210432*/
+#define snesColorConverTo24Bit(IN) ((ColorRGBA){ .r = ((IN).r >> 2) | ((IN).r << 3), .g = ((IN).g >> 2) | ((IN).g << 3), .b = ((IN).b >> 2) | ((IN).b << 3), .a = 255})
+#define snesColorConvertFrom24Bit(IN) ((SNESColor) { .r = (IN).r >> 3, .g = (IN).g >> 3, .b = (IN).b >> 3 })
 
 typedef struct {
    union {
       //256-color bg palettes use all of cgram.  reminder that DCM doesnt use these
-      struct {
-         SNESColor colors[256];
-      } bgPalette256;
+      SNESColor colors[256];
 
       //BG2 in mode7-extbg uses the first 128 colors
       struct {
@@ -259,6 +259,17 @@ typedef struct {
    byte objCount;
 } OAM;
 
+enum OBJSIZE_TYPE {
+   OBJSIZE_8x8_16x16 = 0,
+   OBJSIZE_8x8_32x32 = 1,
+   OBJSIZE_8x8_64x64 = 2,
+   OBJSIZE_16x16_32x32 = 3,
+   OBJSIZE_16x16_64x64 = 4,
+   OBJSIZE_32x32_64x64 = 5,
+   OBJSIZE_16x32_32x64 = 6,
+   OBJSIZE_16x32_32x32 = 7
+};
+
 // Registers Struct
 // Contains all register options for the PPU
 // Excludes general-purpose read/write/operator registers
@@ -365,7 +376,7 @@ typedef struct {
 
    // 210d: bgScroll[4]
    // BG Scrolling
-   // Each BG can specify 10 bits for each of vertical and horizontal scrolling
+   // Each BG can specify 10 bits (unsigned 0-1024) for each of vertical and horizontal scrolling
    // In mode 7, bgScroll[0] uses 13-bit fixe dpoint offset vals and apply to both BG1 and BG2
    struct {
       union {
@@ -568,7 +579,7 @@ typedef struct SNES_t{
    CGRAM cgram;
    VRAM vram;
    OAM oam;
-   Registers hdma[SNES_SCANLINE_COUNT];
+   Registers reg;
 } SNES;
 
 //output is 512x168 32-bit color RGBA

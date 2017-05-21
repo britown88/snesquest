@@ -3,24 +3,216 @@
 #define OBJS_PER_LINE 32
 #define OBJ_TILES_PER_LINE 34
 
+#define MAX_RENDER_LAYERS 12
 
-ColorRGBA snesColorConverTo24Bit(SNESColor in) {
-   /*
-   stretch top 3 bits into lower 3 bits of target
-   5bit :     43210
-   target: 43210432
-   */
-   return (ColorRGBA) {
-      .r = (in.r >> 2) | (in.r << 3),
-      .g = (in.g >> 2) | (in.g << 3),
-      .b = (in.b >> 2) | (in.b << 3),
-      .a = 255
+typedef struct {
+   byte sizeY : 1, sizeX : 1, baseAddr : 6;
+   byte charBase : 4, mosaic : 1, tSize : 1, mainScreen : 1, subScreen : 1;
+   byte2 horzOffset : 10;
+   byte2 vertOffset : 10;
+   byte win1Invert : 1, win1Enable : 1, win2Invert : 1, win2Enable : 1, maskLogic : 2, mainMask : 1, subMask : 1;
+   byte enableColorMath : 1, colorDepth: 4, bgIdx : 2;
+   byte obj : 1, priority : 2;
+}ProcessBG;
+
+/* Mode     BG depth  OPT  Priorities
+1 2 3 4        Front -> Back
+-=-------=-=-=-=----=---============---
+0       2 2 2 2    n    3AB2ab1CD0cd
+1       4 4 2      n    3AB2ab1C 0c
+           * if e set: C3AB2ab1  0c
+2       4 4        y    3A 2B 1a 0b
+3       8 4        n    3A 2B 1a 0b
+4       8 2        y    3A 2B 1a 0b
+5       4 2        n    3A 2B 1a 0b
+6       4          y    3A 2  1a 0
+7       8          n    3  2  1a 0
+7+EXTBG 8 7        n    3  2B 1a 0b*/
+static void _setupBGs(Registers *r, ProcessBG *bgs, byte *bgCount) {
+   int i = 0;
+
+   //so we collate this mess of registers into a per-BG collection
+   ProcessBG BGs[4] = { 0 };
+   BGs[0] = (ProcessBG) {
+      .bgIdx = 0,
+      .sizeY = r->bgSizeAndTileBase[0].sizeY,
+      .sizeX = r->bgSizeAndTileBase[0].sizeX,
+      .baseAddr = r->bgSizeAndTileBase[0].baseAddr,
+      .charBase = r->bgCharBase.bg1,
+      .mosaic = r->mosaic.enableBG1,
+      .tSize = r->bgMode.sizeBG1,
+      .mainScreen = r->mainScreenDesignation.bg1,
+      .subScreen = r->subScreenDesignation.bg1,
+      .horzOffset = r->bgScroll[0].BG.horzOffset,
+      .vertOffset = r->bgScroll[0].BG.vertOffset,
+      .win1Invert = r->windowMaskSettings.win1InvertBG1,
+      .win1Enable = r->windowMaskSettings.win1EnableBG1,
+      .win2Invert = r->windowMaskSettings.win2InvertBG1,
+      .win2Enable = r->windowMaskSettings.win2EnableBG1,
+      .maskLogic = r->windowMaskLogic.bg1,
+      .mainMask = r->mainScreenMasking.bg1,
+      .subMask = r->subScreenMasking.bg1,
+      .enableColorMath = r->colorMathControl.bg1
    };
+   
+   if (r->bgMode.mode <= 5) {
+      BGs[1] = (ProcessBG) {
+         .bgIdx = 1,
+            .sizeY = r->bgSizeAndTileBase[1].sizeY,
+            .sizeX = r->bgSizeAndTileBase[1].sizeX,
+            .baseAddr = r->bgSizeAndTileBase[1].baseAddr,
+            .charBase = r->bgCharBase.bg2,
+            .mosaic = r->mosaic.enableBG2,
+            .tSize = r->bgMode.sizeBG2,
+            .mainScreen = r->mainScreenDesignation.bg2,
+            .subScreen = r->subScreenDesignation.bg2,
+            .horzOffset = r->bgScroll[1].BG.horzOffset,
+            .vertOffset = r->bgScroll[1].BG.vertOffset,
+            .win1Invert = r->windowMaskSettings.win1InvertBG2,
+            .win1Enable = r->windowMaskSettings.win1EnableBG2,
+            .win2Invert = r->windowMaskSettings.win2InvertBG2,
+            .win2Enable = r->windowMaskSettings.win2EnableBG2,
+            .maskLogic = r->windowMaskLogic.bg2,
+            .mainMask = r->mainScreenMasking.bg2,
+            .subMask = r->subScreenMasking.bg2,
+            .enableColorMath = r->colorMathControl.bg2
+      };
+   }
+   
+   if (r->bgMode.mode <= 1) {
+      BGs[2] = (ProcessBG) {
+         .bgIdx = 2,
+            .sizeY = r->bgSizeAndTileBase[2].sizeY,
+            .sizeX = r->bgSizeAndTileBase[2].sizeX,
+            .baseAddr = r->bgSizeAndTileBase[2].baseAddr,
+            .charBase = r->bgCharBase.bg3,
+            .mosaic = r->mosaic.enableBG3,
+            .tSize = r->bgMode.sizeBG3,
+            .mainScreen = r->mainScreenDesignation.bg3,
+            .subScreen = r->subScreenDesignation.bg3,
+            .horzOffset = r->bgScroll[2].BG.horzOffset,
+            .vertOffset = r->bgScroll[2].BG.vertOffset,
+            .win1Invert = r->windowMaskSettings.win1InvertBG3,
+            .win1Enable = r->windowMaskSettings.win1EnableBG3,
+            .win2Invert = r->windowMaskSettings.win2InvertBG3,
+            .win2Enable = r->windowMaskSettings.win2EnableBG3,
+            .maskLogic = r->windowMaskLogic.bg3,
+            .mainMask = r->mainScreenMasking.bg3,
+            .subMask = r->subScreenMasking.bg3,
+            .enableColorMath = r->colorMathControl.bg3
+      };
+   }
+
+   if (r->bgMode.mode == 0) {
+      BGs[3] = (ProcessBG) {
+         .bgIdx = 3,
+            .sizeY = r->bgSizeAndTileBase[3].sizeY,
+            .sizeX = r->bgSizeAndTileBase[3].sizeX,
+            .baseAddr = r->bgSizeAndTileBase[3].baseAddr,
+            .charBase = r->bgCharBase.bg4,
+            .mosaic = r->mosaic.enableBG4,
+            .tSize = r->bgMode.sizeBG4,
+            .mainScreen = r->mainScreenDesignation.bg4,
+            .subScreen = r->subScreenDesignation.bg4,
+            .horzOffset = r->bgScroll[3].BG.horzOffset,
+            .vertOffset = r->bgScroll[3].BG.vertOffset,
+            .win1Invert = r->windowMaskSettings.win1InvertBG4,
+            .win1Enable = r->windowMaskSettings.win1EnableBG4,
+            .win2Invert = r->windowMaskSettings.win2InvertBG4,
+            .win2Enable = r->windowMaskSettings.win2EnableBG4,
+            .maskLogic = r->windowMaskLogic.bg4,
+            .mainMask = r->mainScreenMasking.bg4,
+            .subMask = r->subScreenMasking.bg4,
+            .enableColorMath = r->colorMathControl.bg4
+      };
+   }
+
+   //then we build our render list in order of priority
+   switch (r->bgMode.mode) {
+   case 0:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // A
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // a
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // b
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      bgs[i] = BGs[3]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // D
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // c
+      bgs[i] = BGs[3]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // d      
+      break;
+   case 1:
+      if (r->bgMode.m1bg3pri) 
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // b
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      if (!r->bgMode.m1bg3pri) 
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // c
+      break;
+   case 2:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // b
+      break;
+   case 3:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 8; bgs[i].priority = 1; ++i; // A
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 8; bgs[i].priority = 0; ++i; // a
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // b
+      break;
+   case 4:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 8; bgs[i].priority = 1; ++i; // A
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 8; bgs[i].priority = 0; ++i; // a
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // b
+      break;
+   case 5:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // B
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      bgs[i] = BGs[1]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // b
+      break;
+   case 6:
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      break;
+   }
+
+   *bgCount = i;
 }
 
-SNESColor snesColorConvertFrom24Bit(ColorRGBA in) {
-   return (SNESColor) { .r = in.r >> 3, .g = in.g >> 3, .b = in.b >> 3 };
-}
 
 //output is 512x168 32-bit color RGBA
 void snesRender(SNES *self, ColorRGBA *out, int flags) {
@@ -30,7 +222,7 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
    for (y = 0; y < SNES_SCANLINE_COUNT; ++y) {
       //Setup scanline
-      Registers *r = &self->hdma[y];
+      Registers *r = &self->reg;
 
       //determine the obj tilecounts
       byte objTileCountX[2] = { 0 };
@@ -145,10 +337,28 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
          }
       }
 
+      //setup our render list, list is in order of front of screen to back
+      //if .obj then we can use the pixel it found for an obj
+      // we'll iterate over this list twice, once for mainscreen, once for subscreen
+      ProcessBG layers[MAX_RENDER_LAYERS] = { 0 };
+      byte layerCount = 0;
+      TileMap *tMaps[MAX_RENDER_LAYERS];
+      Char4 *cMaps[MAX_RENDER_LAYERS];
+
+      _setupBGs(r, layers, &layerCount);
+      for (layer = 0; layer < layerCount; ++layer) {
+         if (!layers[layer].obj) {
+            tMaps[layer] = (TileMap*)((byte*)&self->vram + (layers[layer].baseAddr << 11));
+            cMaps[layer] = (Char4*)((byte*)&self->vram + (layers[layer].charBase << 13));
+         }
+      }
+
       //now to render the scanline
       for (x = 0; x < SNES_SIZE_X; ++x) {
-         byte objPri = 0, objPalIndex = 0, objPalette = 0;
 
+         //start by determining the OBJ Pixel from the scanline obj tile data we gathered
+         boolean objPresent = false;
+         byte objPri = 0, objPalIndex = 0, objPalette = 0;
          //see if theres an obj here
          for (obj = 0; obj < objTileCount; ++obj) {
             ObjTile *t = &slTiles[obj];
@@ -172,13 +382,43 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
                   objPalIndex = palIndex;
                   objPri = t->priority;
                   objPalette = t->palette;
+                  objPresent = true;
                }
             }
          }
 
+         //define our result form, we ned to know once we're done:
+         //  1. The main screen palette index (0-255 for all of cgram)
+         //  2. Same for sub screen
+         //  3. color math logic (enabled, halved, add/sub)
+
+         struct {
+            byte mainPIdx;
+            byte subPIdx;
+            byte doColorMath : 1, halve : 1, addSubtract : 1;
+         } result = { 0 };
+
+
+         for (layer = 0; layer < layerCount; ++layer) {
+            ProcessBG *l = layers + layer;
+
+            // expecting an OBJ here, if the OBJ we found fits the priority description 
+            // we can check it for clipping and use it
+            if (l->obj && objPresent && objPri == l->priority) {
+               result.mainPIdx = 128 + (objPalette * 16) + objPalIndex; //magic
+               break;
+            }
+
+            //ok now to process a tilemap
+
+
+
+         }
+
+
          ColorRGBA *outc = out + (y * SNES_SCANLINE_WIDTH) + (x*2);
-         if (objPalIndex) {
-            SNESColor c = self->cgram.objPalettes.palette16s[objPalette].colors[objPalIndex];
+         if (result.mainPIdx) {
+            SNESColor c = self->cgram.colors[result.mainPIdx];
             ColorRGBA color24 = snesColorConverTo24Bit(c);
 
             *outc = color24;

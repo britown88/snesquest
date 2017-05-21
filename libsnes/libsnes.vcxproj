@@ -137,6 +137,7 @@ $(OutDir)assetgen.exe $(ProjectDir)EncodedAssets.h</Command>
     <ClInclude Include="DeviceContext.h" />
     <ClInclude Include="EncodedAssets.h" />
     <ClInclude Include="FrameProfiler.h" />
+    <ClInclude Include="Game.h" />
     <ClInclude Include="GUI.h" />
     <ClInclude Include="LogSpud.h" />
     <ClInclude Include="nuklear.h" />
@@ -149,6 +150,7 @@ $(OutDir)assetgen.exe $(ProjectDir)EncodedAssets.h</Command>
     <ClCompile Include="DBAssets.c" />
     <ClCompile Include="DB.c" />
     <ClCompile Include="DeviceContext.c" />
+    <ClCompile Include="Game.c" />
     <ClCompile Include="GUI.c" />
     <ClCompile Include="LogSpud.c" />
     <ClCompile Include="NuklearDemo.c" />
