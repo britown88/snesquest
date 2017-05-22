@@ -224,6 +224,8 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
       //Setup scanline
       Registers *r = &self->reg;
 
+      int mosaicY = y % (self->reg.mosaic.size + 1);
+
       //determine the obj tilecounts
       byte objTileCountX[2] = { 0 };
       byte objTileCountY[2] = { 0 };
@@ -355,6 +357,7 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
       //now to render the scanline
       for (x = 0; x < SNES_SIZE_X; ++x) {
+         int mosaicX = x % (self->reg.mosaic.size + 1);
 
          //start by determining the OBJ Pixel from the scanline obj tile data we gathered
          boolean objPresent = false;
@@ -403,9 +406,11 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
             ProcessBG *l = layers + layer;
             int bgX = x, bgY = y;//makes sense here to work off copies inc ase we need to change them (mosaics)
 
-            byte mosaic = self->reg.mosaic.size + 1;
-            bgX = (bgX/mosaic) * mosaic;
-            bgY = (bgY / mosaic) * mosaic;
+            bgX -= mosaicX;
+            bgY -= mosaicY;
+
+            bgX += l->horzOffset;
+            bgY += l->vertOffset;
 
             // expecting an OBJ here, if the OBJ we found fits the priority description 
             // we can check it for clipping and use it
@@ -423,10 +428,8 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
             //ok now to process a tilemap
             //first we need to figure out what tile to use, which depends on the width of the tile in pixels
-            byte tileX = (byte)((bgX + l->horzOffset) >> (l->tSize ? 4 : 3)); //divided by 8 or 16
-            byte tileY = (byte)((bgY + l->vertOffset) >> (l->tSize ? 4 : 3));
-            byte inTileX = (byte)((bgX + l->horzOffset)&(l->tSize ? 15 : 7)); //mod16 or mod8
-            byte inTileY = (byte)((bgY + l->vertOffset)&(l->tSize ? 15 : 7));
+            byte tileX = (byte)(bgX >> (l->tSize ? 4 : 3)); //divided by 8 or 16
+            byte tileY = (byte)(bgY >> (l->tSize ? 4 : 3));            
 
             //depending on how many tile maps are given to the BG, either point at a different map or wrap around
             TileMap *tMap = tMaps[layer];
@@ -448,12 +451,14 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
             //we know the tile and the position within it, now we need to know the character
             Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
+            byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
+            byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
 
             byte palIndex = palIndex =
-               ((c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) >> inTileX) |
-               (((c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) >> inTileX) << 1) |
-               (((c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) >> inTileX) << 2) |
-               (((c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) >> inTileX) << 3);
+                !!(c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) |
+               (!!(c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) << 1) |
+               (!!(c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) << 2) |
+               (!!(c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) << 3);
 
             if (palIndex) {
                result.mainPIdx = (t->tile.palette * 16) + palIndex;

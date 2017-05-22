@@ -49,7 +49,7 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    vecDestroy(DBCharacterEncodePalette)(pals);
    dbCharacterMapsDestroy(&hades);
 
-   DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 26);
+   DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 27);
    memcpy(&data->snes->vram.mode1.bgCMap, bg.data, bg.dataSize);
 
    byte2 x = 0, y = 0;
