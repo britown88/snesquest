@@ -53,13 +53,14 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    memcpy(&data->snes->vram.mode1.bgCMap, bg.data, bg.dataSize);
 
    byte2 x = 0, y = 0;
-   for (y = 0; y < 19; ++y) {
-      for (x = 0; x < 16; ++x) {
+   for (y = 0; y < bg.height; ++y) {
+      for (x = 0; x < bg.width; ++x) {
          int i = y * 32 + x;
-
          Tile *t = &snes->vram.mode1.bg1TMaps[0].tiles[i];
-         t->tile.palette = *((byte*)bg.tilePaletteMap + (y*16+x));
-         t->tile.character = (y * 16 + x);
+
+
+         t->tile.palette = *((byte*)bg.tilePaletteMap + (y*bg.width +x));
+         t->tile.character = (y * bg.width + x);
       }
    }
    
@@ -134,7 +135,7 @@ void gameUpdate(Game *self, AppData *data) {
    data->snes->reg.bgScroll[0].BG.horzOffset = (byte2)data->testBGX;
    data->snes->reg.bgScroll[0].BG.vertOffset = (byte2)data->testBGY;
 
-   data->snes->reg.mosaic.size = (byte)(MAX(data->testMosaic - 1, 0));
+   data->snes->reg.mosaic.size = (byte)(MAX(data->testMosaic, 0));
 
    for (y = 0; y < yCount; ++y) {
       for (x = 0; x < xCount; ++x) {

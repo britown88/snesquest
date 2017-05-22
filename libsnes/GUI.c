@@ -642,7 +642,7 @@ void _optionsUpdate(GUIWindow *self, AppData *data) {
          nk_layout_row_dynamic(ctx, 20.0f, 1);
          data->testBGX = nk_propertyi(ctx, "BG X", 0, data->testBGX, 1023, 1, 10.0f);
          data->testBGY = nk_propertyi(ctx, "BG Y", 0, data->testBGY, 1023, 1, 10.0f);
-         data->testMosaic = nk_propertyi(ctx, "Mosaic", 1, data->testMosaic, 16, 1, 1.0f);
+         data->testMosaic = nk_propertyi(ctx, "Mosaic", 0, data->testMosaic, 15, 1, 0.5f);
 
          nk_tree_pop(ctx);
       }
