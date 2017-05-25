@@ -157,16 +157,16 @@ static void _setupBGs(Registers *r, ProcessBG *bgs, byte *bgCount) {
       
       bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
       bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
-      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
-      bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
-      bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
-      bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // b
-      bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
-      if (!r->bgMode.m1bg3pri) 
-      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
-      
-      bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
-      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // c
+      //bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
+      //bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
+      //bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // a
+      //bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 0; ++i; // b
+      //bgs[i] = (ProcessBG) { .obj = 1, .priority = 1 }; ++i;            // 1
+      //if (!r->bgMode.m1bg3pri) 
+      //bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      //
+      //bgs[i] = (ProcessBG) { .obj = 1, .priority = 0 }; ++i;            // 0
+      //bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 0; ++i; // c
       break;
    case 2:
       bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
@@ -456,21 +456,40 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
                continue;
             }
 
-            //we know the tile and the position within it, now we need to know the character
-            Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
-            byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
-            byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
+            if (l->colorDepth == 2) {
+               //we know the tile and the position within it, now we need to know the character
+               Char4 *c = ((Char4*)cMaps[layer]) + t->tile.character;
+               byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
+               byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
 
-            byte palIndex = palIndex =
-                !!(c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) |
-               (!!(c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) << 1) |
-               (!!(c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) << 2) |
-               (!!(c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) << 3);
+               byte palIndex = palIndex =
+                  !!(c->rows[inTileY].planes[0] & (1 << inTileX)) |
+                  (!!(c->rows[inTileY].planes[1] & (1 << inTileX)) << 1);
 
-            if (palIndex) {
-               result.mainPIdx = (t->tile.palette * 16) + palIndex;
-               break;
+               if (palIndex) {
+                  result.mainPIdx = (t->tile.palette * 16) + palIndex;
+                  break;
+               }
             }
+            else {
+               //we know the tile and the position within it, now we need to know the character
+               Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
+               byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
+               byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
+
+               byte palIndex = palIndex =
+                  !!(c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) |
+                  (!!(c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) << 1) |
+                  (!!(c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) << 2) |
+                  (!!(c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) << 3);
+
+               if (palIndex) {
+                  result.mainPIdx = (t->tile.palette * 16) + palIndex;
+                  break;
+               }
+            }
+
+            
             
          }
 
@@ -505,7 +524,7 @@ struct CMapBlock {
    CMap *parent;
    byte colorDepth;
    byte2 width, height;
-   byte sizeX : 4, sizeY : 4;
+   byte sizeX, sizeY;
    CMapSubblock sb[MAX_SB_COUNT];
    byte sbCount;
 };

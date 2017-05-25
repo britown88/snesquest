@@ -69,11 +69,29 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
          t->tile.palette = *((byte*)bg.tilePaletteMap + (y*bg.width +x));
 
          t->tile.character = cMapBlockGetCharacter(block, x, y);
+         t->tile.priority = 1;
 
          byte2 foo = cMapBlockGetCharacter(block, x, y);
          byte2 foo2 = (y * bg.width + x);
 
          //t->tile.character = (y * bg.width + x);
+      }
+   }
+
+   DBCharacterMaps txt = dbCharacterMapsSelectFirstByid(data->db, 28);
+   CMap *map2 = cMapCreate(&snes->vram, 4, 0, 4);
+   CMapBlock *block2 = cMapAlloc(map2, 2, 16, 4, 8, 8);
+   cMapBlockSetCharacters(block2, txt.data);
+   cMapCommit(map2);
+
+   for (y = 0; y < 4; ++y) {
+      for (x = 0; x < txt.width; ++x) {
+         int i = y * 32 + x;
+         Tile *t = &snes->vram.mode1.bg3TMap.tiles[i];
+
+         t->tile.palette = 3;
+         t->tile.character = cMapBlockGetCharacter(block2, x, y);
+         t->tile.priority = 1;
       }
    }
    
@@ -86,6 +104,16 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    });
 
    vecDestroy(DBCharacterEncodePalette)(pals);
+
+   pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, txt.id);
+   vecForEach(DBCharacterEncodePalette, p, pals, {
+      DBPalettes dbp = dbPalettesSelectFirstByid(data->db, p->paletteId);
+      memcpy(&data->snes->cgram.bgPalette16s[p->index + 3], dbp.colors, dbp.colorsSize);
+      dbPalettesDestroy(&dbp);
+   });
+
+   vecDestroy(DBCharacterEncodePalette)(pals);
+
    dbCharacterMapsDestroy(&hades);
 
 
@@ -144,8 +172,8 @@ void gameUpdate(Game *self, AppData *data) {
    Int2 n = data->window->nativeResolution;
    const Recti nativeViewport = { 0, 0, n.x, n.y };
 
-   int xCount = 0;
-   int yCount = 0;
+   int xCount = 2;
+   int yCount = 2;
    int spacing = 64;
 
    data->snes->reg.bgScroll[0].BG.horzOffset = (byte2)data->testBGX;
