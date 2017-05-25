@@ -1,9 +1,17 @@
 #include "snes.h"
+#include "libutils/CheckedMemory.h"
+#include "libutils/Rect.h"
 
 #define OBJS_PER_LINE 32
 #define OBJ_TILES_PER_LINE 34
 
 #define MAX_RENDER_LAYERS 12
+
+#define CHAR16_TILES_PER_ROW 16
+#define CHAR4_TILES_PER_ROW 32
+#define BYTES_PER_ROW (CHAR4_TILES_PER_ROW * sizeof(Char4))
+#define VRAM_SIZE 0x10000
+#define MAX_SB_COUNT 16
 
 typedef struct {
    byte sizeY : 1, sizeX : 1, baseAddr : 6;
@@ -218,7 +226,6 @@ static void _setupBGs(Registers *r, ProcessBG *bgs, byte *bgCount) {
 void snesRender(SNES *self, ColorRGBA *out, int flags) {
    int x = 0, y = 0;
    byte layer = 0, obj = 0;
-
 
    for (y = 0; y < SNES_SCANLINE_COUNT; ++y) {
       //Setup scanline
@@ -479,4 +486,247 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
          }
       }
    }
+}
+
+typedef struct MapNode MapNode;
+
+typedef struct {  
+   Recti r;
+   Char4 *data;
+   MapNode *node;
+}CMapSubblock;
+
+struct CMapBlock {
+   CMap *parent;
+   byte colorDepth;
+   byte2 width, height;
+   byte sizeX : 4, sizeY : 4;
+   CMapSubblock sb[MAX_SB_COUNT];
+   byte sbCount;
+};
+typedef CMapBlock *CMapBlockPtr;
+
+#define VectorT CMapBlockPtr
+#include "libutils/Vector_Create.h"
+
+static void _cMapBlockDestroy(CMapBlockPtr *self) {
+   byte i = 0;
+   for (i = 0; i < (*self)->sbCount; ++i) {
+      checkedFree((*self)->sb[i].data);
+   }
+   checkedFree(*self);
+}
+
+struct MapNode {
+   MapNode *child[2];
+   Recti rect;
+   CMapSubblock *block;
+};
+
+static void _mapNodeDestroy(MapNode *self) {
+   if (self->child[0]) {
+      _mapNodeDestroy(self->child[0]);
+      checkedFree(self->child[0]);
+   }
+   if (self->child[1]) {
+      _mapNodeDestroy(self->child[1]);
+      checkedFree(self->child[1]);
+   }
+}
+
+struct CMap {
+   VRAM *parent;
+   byte baseAddr;
+   byte rowOffset;
+   byte rowCount;
+
+   MapNode root;
+   vec(CMapBlockPtr) *blocks;
+};
+
+CMap *cMapCreate(VRAM *vram, byte baseAddr, byte rowOffset, byte rowCount) {
+   size_t addr = baseAddr << 13;
+   assert(addr + (BYTES_PER_ROW * (rowOffset + rowCount)) <= VRAM_SIZE && "Attempting to create character map outside of vram bounds.");
+
+   CMap *out = checkedCalloc(1, sizeof(CMap));
+   out->parent = vram;
+   out->baseAddr = baseAddr;
+   out->rowOffset = rowOffset;
+   out->rowCount = rowCount;
+   out->blocks = vecCreate(CMapBlockPtr)(&_cMapBlockDestroy);
+   out->root.rect = (Recti) {0, 0, CHAR4_TILES_PER_ROW, rowCount};
+
+   return out;
+}
+
+void cMapDestroy(CMap *self) {
+   _mapNodeDestroy(&self->root);
+   vecDestroy(CMapBlockPtr)(self->blocks);
+   checkedFree(self);
+}
+
+static MapNode *_nodeInsert(MapNode *self, CMapSubblock *block) {
+   
+   //if not a leaf
+   if (self->child[0]) {
+
+      //try inserting into first child
+      MapNode *newNode = _nodeInsert(self->child[0], block);
+      if (newNode) {
+         return newNode;
+      }
+
+      //no room, insert into second child
+      return _nodeInsert(self->child[1], block);
+   }
+   else {
+      //if theres already a block here, return
+      if (self->block) {
+         return NULL;
+      }
+
+      //if this isnt big enough, return 
+      if (block->r.w > self->rect.w || block->r.h > self->rect.h) {
+         return NULL;
+      }
+
+      //if this rect is perfectly sized, accept it
+      if (block->r.w == self->rect.w && block->r.h == self->rect.h) {
+         return self;
+      }
+
+      //ok at this point we need to split this node
+      self->child[0] = checkedCalloc(1, sizeof(MapNode));
+      self->child[1] = checkedCalloc(1, sizeof(MapNode));
+
+      byte2 dw = self->rect.w - block->r.w;
+      byte2 dh = self->rect.h - block->r.h;
+
+      if (dw > dh) {
+         self->child[0]->rect = (Recti) { self->rect.x,  self->rect.y, block->r.w, self->rect.h};
+         self->child[1]->rect = (Recti) { self->rect.x + block->r.w, self->rect.y, self->rect.w - block->r.w, self->rect.h};
+      }
+      else {
+         self->child[0]->rect = (Recti) { self->rect.x, self->rect.y, self->rect.w, block->r.h };
+         self->child[1]->rect = (Recti) { self->rect.x, self->rect.y + block->r.h, self->rect.w, self->rect.h - block->r.h };
+      }
+
+      return _nodeInsert(self->child[0], block);
+   }
+}
+
+CMapBlock *cMapAlloc(CMap *cmap, byte colorDepth, byte2 width, byte2 height, byte tileWidth, byte tileHeight) {
+   CMapBlock *out = checkedCalloc(1, sizeof(CMapBlock));
+   out->parent = cmap;
+   out->colorDepth = colorDepth;
+   out->width = width;
+   out->height = height;
+   out->sizeX = tileWidth;
+   out->sizeY = tileHeight;
+
+                     // width/8 * depth/2
+   byte char4Width = (tileWidth >> 3) * (colorDepth >> 1); //the number of char4s in one tile
+   byte char4Height = tileHeight >> 3;
+
+   // most characters we can fit in one row is 32 char4's
+   // split the block into as many subblocks as it needs
+   out->sbCount = ((out->width * char4Width) / CHAR4_TILES_PER_ROW) + ((out->width * char4Width) % CHAR4_TILES_PER_ROW > 0 ? 1 : 0);
+   assert(out->sbCount <= MAX_SB_COUNT && "Block too large");
+
+   byte i = 0;
+   for (i = 0; i < out->sbCount - 1; ++i) {
+      out->sb[i].r = (Recti) { .x = 0, .y = 0, .w = CHAR4_TILES_PER_ROW, .h = height * char4Height };
+      out->sb[i].data = checkedCalloc(1, sizeof(Char4) * out->sb[i].r.w * out->sb[i].r.h);
+   }
+
+   out->sb[i].r = (Recti) { .x = 0, .y = 0, .w = (out->width * char4Width) % CHAR4_TILES_PER_ROW, .h = height * char4Height };
+   if (!out->sb[i].r.w) { out->sb[i].r.w = CHAR4_TILES_PER_ROW; }
+   out->sb[i].data = checkedCalloc(1, sizeof(Char4) * out->sb[i].r.w * out->sb[i].r.h);
+
+   for (i = 0; i < out->sbCount; ++i) {
+      MapNode *n = _nodeInsert(&cmap->root, &out->sb[i]);
+      if (n) {
+         n->block = &out->sb[i];
+         n->block->r = n->rect;
+         n->block->node = n;
+      }
+      else {
+         _cMapBlockDestroy(&out);
+         assert(false && "Out of room, cant add block");
+         return NULL;
+      }
+   }
+
+   vecPushBack(CMapBlockPtr)(cmap->blocks, &out);
+   return out;
+}
+
+void cMapFree(CMap *cmap, CMapBlock *block) {
+   byte i = 0;
+   for (i = 0; i < block->sbCount; ++i) {
+      if (block->sb[i].node) {
+         block->sb[i].node->block = NULL;
+      }
+   }
+   vecRemove(CMapBlockPtr)(cmap->blocks, &block);
+}
+
+void cMapBlockSetCharacters(CMapBlock *block, Char4 *data) {
+   byte char4Width = (block->sizeX >> 3) * (block->colorDepth >> 1); //the number of char4s in one tile
+   byte char4Height = block->sizeY >> 3;
+
+   byte i = 0;
+   for (i = 0; i < block->sbCount; ++i) {
+      byte2 y = 0;
+      for (y = 0; y < block->sb[i].r.h; ++y) {
+         Char4 *destAddr = block->sb[i].data + (block->sb[i].r.w * y);
+         Char4 *srcAddr = data + (block->width * char4Width * y) + (CHAR4_TILES_PER_ROW * i);
+         memcpy(destAddr, srcAddr, sizeof(Char4) * block->sb[i].r.w);
+      }
+   }
+}
+
+byte2 cMapBlockGetCharacter(CMapBlock *block, byte2 x, byte2 y) {
+   //heres the fucked part we need to determine what char4 character index to use
+   //based on x, y, colordepth, tilesize, and subblock count
+   byte char4Width = (block->sizeX >> 3) * (block->colorDepth >> 1); //the number of char4s in one tile
+   byte char4Height = block->sizeY >> 3;
+   byte sbIdx = (x * char4Width) >> 5;
+
+   CMapSubblock *sb = &block->sb[sbIdx];
+
+   byte2 out = block->parent->rowOffset * (CHAR4_TILES_PER_ROW / char4Width);
+   out += (sb->r.y + y) * (CHAR4_TILES_PER_ROW/ char4Width);
+   out += sb->r.x / char4Width;
+   out += x - (sbIdx * (CHAR4_TILES_PER_ROW/ char4Width));
+   return out;
+}
+
+static void _commitBlock(CMapBlock *block) {
+   byte char4Width = (block->sizeX >> 3) * (block->colorDepth >> 1); //the number of char4s in one tile
+   byte char4Height = block->sizeY >> 3;
+
+   VRAM *vram = block->parent->parent;
+   Char4 *dest = ((byte*)vram) + (block->parent->baseAddr << 13);
+   dest += block->parent->rowOffset * CHAR4_TILES_PER_ROW;
+
+   byte i = 0;
+   for (i = 0; i < block->sbCount; ++i) {
+      CMapSubblock *sb = &block->sb[i];
+      byte2 y = 0;
+      for (y = 0; y < sb->r.h; ++y) {
+         Char4 *destAddr = dest;
+         destAddr += (sb->r.y + (y * char4Height)) * CHAR4_TILES_PER_ROW;
+         destAddr += sb->r.x;
+
+         Char4 *srcAddr = sb->data + (sb->r.w * y);
+         memcpy(destAddr, srcAddr, sizeof(Char4) * sb->r.w);
+      }
+   }
+}
+
+void cMapCommit(CMap *self) {
+   vecForEach(CMapBlockPtr, block, self->blocks, {
+      _commitBlock(*block);
+   });
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <assert.h>
 
 #define S_ID(STR, ID) (StringID)ID
 typedef uint32_t StringID;

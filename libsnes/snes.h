@@ -163,7 +163,7 @@ typedef struct {
 */
 typedef struct {
    union {
-      byte raw[0xFFFF]; //64kb
+      byte raw[0x10000]; //64kb
 
       // a simple organization of vram for mode 1 is 4 tilemaps for each of bg1 and 2
       // followed by a full 1024-tile charmap and then the two obj charmaps
@@ -589,3 +589,31 @@ enum {
 void snesRender(SNES *self, ColorRGBA *out, int flags);
 
 #pragma pack(pop)
+
+// A character map inside VRAM
+typedef struct CMap CMap;
+
+// 'rows' are sets of 32 4-color characters (16 bytes each)
+// baseAddr follows the cmaps baseaddr scheme of 8kb steps (vram + (baseAddr << 13))
+CMap *cMapCreate(VRAM *vram, byte baseAddr, byte rowOffset, byte rowCount);
+void cMapDestroy(CMap *self);
+void cMapCommit(CMap *self);// push all blocks to vram
+
+// this is an arbitrarily-sized grid of characters
+// allocated by a CMap.  The CMap will defreg and reorganize this block to make sense in vram
+typedef struct CMapBlock CMapBlock;
+
+// allocates a block of a cmap for writing and use
+// if there is no room, cmap will attempt to defrag to make room
+// if it still cant find space for it it will return null
+// colorDepth is the bitcount for tile color, (2, 4, 8)->(4,16,256)
+CMapBlock *cMapAlloc(CMap *cmap, byte colorDepth, byte2 width, byte2 height, byte tileWidth, byte tileHeight);
+void cMapFree(CMap *cmap, CMapBlock *block);
+
+//pushes bitplaned chardata to the block.  The assumption is that data is correctly sized!
+void cMapBlockSetCharacters(CMapBlock *block, Char4 *data);
+
+// this will take an x,y  for coordinates into the full block and
+// return the correct character index inside vram based on how it is organized
+// x/y can remain consistent regardless of how the CMap reorganizes or splits the blocks
+byte2 cMapBlockGetCharacter(CMapBlock *block, byte2 x, byte2 y);

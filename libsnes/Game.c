@@ -50,7 +50,14 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    dbCharacterMapsDestroy(&hades);
 
    DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 26);
-   memcpy(&data->snes->vram.mode1.bgCMap, bg.data, bg.dataSize);
+
+   CMap *map = cMapCreate(&snes->vram, 4, 4, 60);
+   CMapBlock *block = cMapAlloc(map, 4, 30, 19, 8, 8);
+   cMapBlockSetCharacters(block, bg.data);
+   cMapCommit(map);
+
+
+   //memcpy(&data->snes->vram.mode1.bgCMap, bg.data, bg.dataSize);
 
    byte2 x = 0, y = 0;
    for (y = 0; y < bg.height; ++y) {
@@ -60,7 +67,13 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
 
          t->tile.palette = *((byte*)bg.tilePaletteMap + (y*bg.width +x));
-         t->tile.character = (y * bg.width + x);
+
+         t->tile.character = cMapBlockGetCharacter(block, x, y);
+
+         byte2 foo = cMapBlockGetCharacter(block, x, y);
+         byte2 foo2 = (y * bg.width + x);
+
+         //t->tile.character = (y * bg.width + x);
       }
    }
    
@@ -104,6 +117,9 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    //snes->reg.objSizeAndBase.objSize = OBJSIZE_32x32_64x64;
    //snes->oam.objCount = 128;
 
+   
+   return;
+
 }
 
 Game *gameCreate(AppData *data) {
@@ -128,8 +144,8 @@ void gameUpdate(Game *self, AppData *data) {
    Int2 n = data->window->nativeResolution;
    const Recti nativeViewport = { 0, 0, n.x, n.y };
 
-   int xCount = 1;
-   int yCount = 1;
+   int xCount = 0;
+   int yCount = 0;
    int spacing = 64;
 
    data->snes->reg.bgScroll[0].BG.horzOffset = (byte2)data->testBGX;
