@@ -153,9 +153,9 @@ static void _setupBGs(Registers *r, ProcessBG *bgs, byte *bgCount) {
       break;
    case 1:
       if (r->bgMode.m1bg3pri) 
-      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      //bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
       
-      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      //bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
       bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
       //bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
       //bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
@@ -474,8 +474,21 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
             else {
                //we know the tile and the position within it, now we need to know the character
                Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
+               
+
                byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
                byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
+
+               if (l->tSize) {
+                  if (inTileX >= 8) {
+                     inTileX -= 8;
+                     ++c;
+                  }
+                  if (inTileY >= 8) {
+                     inTileY -= 8;
+                     c += 16;
+                  }
+               }
 
                byte palIndex = palIndex =
                   !!(c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) |
@@ -722,7 +735,7 @@ byte2 cMapBlockGetCharacter(CMapBlock *block, byte2 x, byte2 y) {
    byte2 out = block->parent->rowOffset * (CHAR4_TILES_PER_ROW / char4Width);
    out += (sb->r.y + y) * (CHAR4_TILES_PER_ROW/ char4Width);
    out += sb->r.x / char4Width;
-   out += x - (sbIdx * (CHAR4_TILES_PER_ROW/ char4Width));
+   out += x- (sbIdx * (CHAR4_TILES_PER_ROW/ char4Width));
    return out;
 }
 

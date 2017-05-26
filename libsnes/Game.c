@@ -35,6 +35,8 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
    snes->reg.bgCharBase.bg2 = 4;
    snes->reg.bgCharBase.bg3 = 4;
 
+   //snes->reg.bgMode.sizeBG1 = 1;
+
 
    DBCharacterMaps hades = dbCharacterMapsSelectFirstByid(data->db, 25);
    memcpy(data->snes->vram.mode1.objCMaps, hades.data, hades.dataSize);   
@@ -67,12 +69,11 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
 
          t->tile.palette = *((byte*)bg.tilePaletteMap + (y*bg.width +x));
-
          t->tile.character = cMapBlockGetCharacter(block, x, y);
          t->tile.priority = 1;
 
-         byte2 foo = cMapBlockGetCharacter(block, x, y);
-         byte2 foo2 = (y * bg.width + x);
+         //byte2 foo = cMapBlockGetCharacter(block, x, y);
+         //byte2 foo2 = (y * bg.width + x);
 
          //t->tile.character = (y * bg.width + x);
       }
