@@ -253,10 +253,6 @@ typedef struct {
          x9_2 : 1, sz_2 : 1,
          x9_3 : 1, sz_3 : 1;
    } secondary[32];
-
-   // need a way to know how many objs we have.  
-   // I believe this is probably internal on actual hgardweare? not sure
-   byte objCount;
 } OAM;
 
 enum OBJSIZE_TYPE {

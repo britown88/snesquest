@@ -153,9 +153,9 @@ static void _setupBGs(Registers *r, ProcessBG *bgs, byte *bgCount) {
       break;
    case 1:
       if (r->bgMode.m1bg3pri) 
-      //bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
+      bgs[i] = BGs[2]; bgs[i].colorDepth = 2; bgs[i].priority = 1; ++i; // C
       
-      //bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
+      bgs[i] = (ProcessBG) { .obj = 1, .priority = 3 }; ++i;            // 3
       bgs[i] = BGs[0]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // A
       //bgs[i] = BGs[1]; bgs[i].colorDepth = 4; bgs[i].priority = 1; ++i; // B
       //bgs[i] = (ProcessBG) { .obj = 1, .priority = 2 }; ++i;            // 2
@@ -266,9 +266,12 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
       //range, find the first 32 sprites in the scanline
       byte secondaryIndex = 0;
-      for (obj = 0; obj < 128 && obj < self->oam.objCount &&  objCount < OBJS_PER_LINE; ++obj) {
+      for (obj = 0; obj < 128  &&  objCount < OBJS_PER_LINE; ++obj) {
          //determine base don obj height the first 32 objs on this sl
          Sprite *spr = self->oam.primary + obj;
+         if (!spr->character) {
+            continue;
+         }
 
          byte si2 = obj & 3; //obj%4
          byte x9 = !!((*(byte*)&self->oam.secondary[secondaryIndex]) & (1 << (si2 * 2)));
@@ -405,33 +408,158 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
          struct {
             byte mainPIdx;
             byte subPIdx;
-            byte doColorMath : 1, halve : 1, addSubtract : 1;
+            byte subLayer;//the layer index the subpixel came from
+            byte doColorMath : 1;
          } result = { 0 };
 
+         if (r->colorMathControl.enableBGOBJ) {
+            for (layer = 0; layer < layerCount; ++layer) {
+               ProcessBG *l = layers + layer;
+
+               // expecting an OBJ here, if the OBJ we found fits the priority description 
+               // we can check it for clipping and use it
+               if (l->obj) {
+                  if (!r->subScreenDesignation.obj) {
+                     continue;
+                  }
+
+                  if (objPresent && objPri == l->priority) {
+                     result.subPIdx = 128 + (objPalette * 16) + objPalIndex; //magic
+                     result.subLayer = layer;
+                     break;
+                  }
+                  else {
+                     //obj layer skip the rest
+                     continue;
+                  }
+               }
+
+               //now we can insta-skip if bgs are disabled
+               if (!l->subScreen) {
+                  continue;
+               }
+
+               int bgX = x, bgY = y;//makes sense here to work off copies inc ase we need to change them (mosaics)
+
+               if (l->mosaic) {
+                  bgX -= mosaicX;
+                  bgY -= mosaicY;
+               }
+
+               bgX += l->horzOffset;
+               bgY += l->vertOffset;
+
+               //ok now to process a tilemap
+               //first we need to figure out what tile to use, which depends on the width of the tile in pixels
+               byte tileX = (byte)(bgX >> (l->tSize ? 4 : 3)); //divided by 8 or 16
+               byte tileY = (byte)(bgY >> (l->tSize ? 4 : 3));
+
+               //depending on how many tile maps are given to the BG, either point at a different map or wrap around
+               TileMap *tMap = tMaps[layer];
+               tileX &= l->sizeX ? 63 : 31;
+               if (tileX >= 32) {
+                  tileX &= 31; tMap += 1;
+               }
+               tileY &= l->sizeY ? 63 : 31;
+               if (tileY >= 32) {
+                  tileY &= 31;  tMap += l->sizeX ? 2 : 1;
+               }
+
+               //now detemmine which tile we're using
+               Tile *t = tMap->tiles + (tileY * 32 + tileX);
+               if (t->tile.priority != l->priority || !t->tile.character) {
+                  //only draw from this tile if its set to the currenlty-drawn priority
+                  continue;
+               }
+
+               if (l->colorDepth == 2) {
+                  //we know the tile and the position within it, now we need to know the character
+                  Char4 *c = ((Char4*)cMaps[layer]) + t->tile.character;
+                  byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
+                  byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
+
+                  byte palIndex = palIndex =
+                     !!(c->rows[inTileY].planes[0] & (1 << inTileX)) |
+                     (!!(c->rows[inTileY].planes[1] & (1 << inTileX)) << 1);
+
+                  if (palIndex) {
+                     result.subPIdx = (t->tile.palette * 16) + palIndex;
+                     result.subLayer = layer;
+                     break;
+                  }
+               }
+               else {
+                  //we know the tile and the position within it, now we need to know the character
+                  Char16 *c = ((Char16*)cMaps[layer]) + t->tile.character;
+
+
+                  byte inTileX = (byte)(bgX & (l->tSize ? 15 : 7)); //mod16 or mod8
+                  byte inTileY = (byte)(bgY & (l->tSize ? 15 : 7));
+
+                  if (l->tSize) {
+                     if (inTileX >= 8) {
+                        inTileX -= 8;
+                        ++c;
+                     }
+                     if (inTileY >= 8) {
+                        inTileY -= 8;
+                        c += 16;
+                     }
+                  }
+
+                  byte palIndex = palIndex =
+                     !!(c->tiles[0].rows[inTileY].planes[0] & (1 << inTileX)) |
+                     (!!(c->tiles[0].rows[inTileY].planes[1] & (1 << inTileX)) << 1) |
+                     (!!(c->tiles[1].rows[inTileY].planes[0] & (1 << inTileX)) << 2) |
+                     (!!(c->tiles[1].rows[inTileY].planes[1] & (1 << inTileX)) << 3);
+
+                  if (palIndex) {
+                     result.subPIdx = (t->tile.palette * 16) + palIndex;
+                     result.subLayer = layer;
+                     break;
+                  }
+               }
+            }
+         }
 
          for (layer = 0; layer < layerCount; ++layer) {
             ProcessBG *l = layers + layer;
-            int bgX = x, bgY = y;//makes sense here to work off copies inc ase we need to change them (mosaics)
-
-            bgX -= mosaicX;
-            bgY -= mosaicY;
-
-            bgX += l->horzOffset;
-            bgY += l->vertOffset;
 
             // expecting an OBJ here, if the OBJ we found fits the priority description 
             // we can check it for clipping and use it
             if (l->obj) {
+               if (!r->mainScreenDesignation.obj) {
+                  continue;
+               }
+
                if (objPresent && objPri == l->priority) {
                   result.mainPIdx = 128 + (objPalette * 16) + objPalIndex; //magic
+                  if (r->colorMathControl.obj && result.subLayer <= layer) {
+                     result.doColorMath = 1;
+                  }
+
                   break;
                }
                else {
                   //obj layer skip the rest
                   continue;
-               }
-               
+               }               
             }
+
+            //now we can insta-skip if bgs are disabled
+            if (!l->mainScreen) {
+               continue;
+            }
+
+            int bgX = x, bgY = y;//makes sense here to work off copies inc ase we need to change them (mosaics)
+
+            if (l->mosaic) {
+               bgX -= mosaicX;
+               bgY -= mosaicY;
+            }
+
+            bgX += l->horzOffset;
+            bgY += l->vertOffset;
 
             //ok now to process a tilemap
             //first we need to figure out what tile to use, which depends on the width of the tile in pixels
@@ -451,7 +579,7 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
             //now detemmine which tile we're using
             Tile *t = tMap->tiles + (tileY * 32 + tileX);
-            if (t->tile.priority != l->priority) {
+            if (t->tile.priority != l->priority || !t->tile.character) {
                //only draw from this tile if its set to the currenlty-drawn priority
                continue;
             }
@@ -468,6 +596,9 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
                if (palIndex) {
                   result.mainPIdx = (t->tile.palette * 16) + palIndex;
+                  if (l->enableColorMath && result.subLayer <= layer) {
+                     result.doColorMath = 1;
+                  }
                   break;
                }
             }
@@ -498,19 +629,45 @@ void snesRender(SNES *self, ColorRGBA *out, int flags) {
 
                if (palIndex) {
                   result.mainPIdx = (t->tile.palette * 16) + palIndex;
+                  if (l->enableColorMath && result.subLayer <= layer) {
+                     result.doColorMath = 1;
+                  }
                   break;
                }
             }
-
-            
-            
          }
 
 
          ColorRGBA *outc = out + (y * SNES_SCANLINE_WIDTH) + (x*2);
          if (result.mainPIdx) {
-            SNESColor c = self->cgram.colors[result.mainPIdx];
-            ColorRGBA color24 = snesColorConverTo24Bit(c);
+            SNESColor subc = self->cgram.colors[result.subPIdx];
+            SNESColor mainc = self->cgram.colors[result.mainPIdx];
+
+            if (result.doColorMath) {
+               byte red, green, blue;
+               if (r->colorMathControl.addSubtract) {
+                  red = mainc.r - subc.r;
+                  green = mainc.g - subc.g;
+                  blue = mainc.b - subc.b;
+               }
+               else {
+                  red = mainc.r + subc.r;
+                  green = mainc.g + subc.g;
+                  blue = mainc.b + subc.b;
+               }
+
+               if (r->colorMathControl.halve) {
+                  red >>= 1;
+                  green >>= 1;
+                  blue >>= 1;
+               }
+
+               mainc.r = MIN(31, MAX(0, red));
+               mainc.g = MIN(31, MAX(0, green));
+               mainc.b = MIN(31, MAX(0, blue));
+            }
+
+            ColorRGBA color24 = snesColorConverTo24Bit(mainc);
 
             *outc = color24;
             *(outc + 1) = color24;

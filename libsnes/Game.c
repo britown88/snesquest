@@ -37,9 +37,30 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
    //snes->reg.bgMode.sizeBG1 = 1;
 
+   snes->reg.colorMathControl.enableBGOBJ = 1;
+   //snes->reg.colorMathControl.halve = 1;
+   //snes->reg.colorMathControl.addSubtract = 1;
+   snes->reg.colorMathControl.bg1 = 1;
+   snes->reg.mainScreenDesignation.bg1 = 1;   
+   snes->reg.mainScreenDesignation.bg3 = 1;
+   snes->reg.mainScreenDesignation.obj = 0;
+   snes->reg.subScreenDesignation.obj = 1;
+   snes->reg.mosaic.enableBG1 = 1;
+
+
+
 
    DBCharacterMaps hades = dbCharacterMapsSelectFirstByid(data->db, 25);
-   memcpy(data->snes->vram.mode1.objCMaps, hades.data, hades.dataSize);   
+   CMap *hmap = cMapCreate(&snes->vram, 2, 2, 32);
+   CMapBlock *hblock = cMapAlloc(hmap, 4, hades.width, hades.height, 8, 8);
+   cMapBlockSetCharacters(hblock, hades.data);
+   cMapCommit(hmap);
+   snes->oam.primary[0].character = cMapBlockGetCharacter(hblock, 0, 0);
+
+   data->testX = 28;
+   data->testY = 58;
+
+   //memcpy(data->snes->vram.mode1.objCMaps, hades.data, hades.dataSize);   
 
    vec(DBCharacterEncodePalette) *pals = dbCharacterEncodePaletteSelectBycharacterMapId(data->db, hades.id);
    vecForEach(DBCharacterEncodePalette, p, pals, {
@@ -48,10 +69,12 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
       dbPalettesDestroy(&dbp);
    });
 
+   memcpy(&data->snes->cgram.objPalettes.palette16s[1], &data->snes->cgram.objPalettes.palette16s[0], sizeof(data->snes->cgram.objPalettes.palette16s[0]));
+
    vecDestroy(DBCharacterEncodePalette)(pals);
    dbCharacterMapsDestroy(&hades);
 
-   DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 26);
+   DBCharacterMaps bg = dbCharacterMapsSelectFirstByid(data->db, 29);
 
    CMap *map = cMapCreate(&snes->vram, 4, 4, 60);
    CMapBlock *block = cMapAlloc(map, 4, 30, 19, 8, 8);
@@ -81,6 +104,7 @@ static void _setupTestSNES(SNES *snes, AppData *data) {
 
    DBCharacterMaps txt = dbCharacterMapsSelectFirstByid(data->db, 28);
    CMap *map2 = cMapCreate(&snes->vram, 4, 0, 4);
+   cMapAlloc(map2, 2, 1, 1, 8, 8);
    CMapBlock *block2 = cMapAlloc(map2, 2, 16, 4, 8, 8);
    cMapBlockSetCharacters(block2, txt.data);
    cMapCommit(map2);
@@ -166,6 +190,7 @@ void gameStart(Game *self, AppData *data) {
    _setupTestSNES(data->snes, data);
 }
 
+static int counter = 0, counter2 = 0;
 
 void gameUpdate(Game *self, AppData *data) {
    int x = 0, y = 0;
@@ -213,6 +238,7 @@ void gameUpdate(Game *self, AppData *data) {
          data->snes->oam.primary[idx].x = testX.twos.value;
          data->snes->oam.primary[idx].y = data->testY + y*spacing;
          data->snes->oam.primary[idx].priority = 3;
+         data->snes->oam.primary[idx].palette = 1;
 
          if (x % 2) {
             data->snes->oam.primary[idx].flipX = 1;
@@ -224,5 +250,41 @@ void gameUpdate(Game *self, AppData *data) {
       }
    }
 
-   data->snes->oam.objCount = xCount*yCount;
+
+   
+   memcpy(&data->snes->cgram.objPalettes.palette16s[1], &data->snes->cgram.objPalettes.palette16s[0], sizeof(data->snes->cgram.objPalettes.palette16s[0]));
+   byte c = 0;
+   for (c = 0; c < 16; ++c) {
+      int amt = (counter % 62);
+      
+      SNESColor *col = &data->snes->cgram.objPalettes.palette16s[1].colors[c];
+
+      if (amt >= 31) {
+         data->snes->reg.mainScreenDesignation.obj = 1;
+         data->snes->reg.subScreenDesignation.obj = 0;
+         
+         //amt -= 31;
+
+         //col->b = MIN(31, MAX(0, col->b - amt));
+         //col->g = MIN(31, MAX(0, col->g - amt));
+      }
+      else {
+         data->snes->reg.mainScreenDesignation.obj = 0;
+         data->snes->reg.subScreenDesignation.obj = 1;
+
+         col->r = MIN(31, MAX(0, col->r - amt));
+         col->b = col->r;
+         col->g = 0;
+      }
+
+
+         
+
+      
+
+   }
+   if (++counter2 % 4 == 0) {
+      ++counter;
+   }
+   
 }
